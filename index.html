@@ -2,18 +2,24 @@
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BLYKIO - Online</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { background: #0b0e14; color: white; font-family: 'Arial', sans-serif; text-align: center; }
+        :root { --p: #5865f2; --bg: #0b0e14; --box: #1c222d; --text: #ffffff; --imp: #ff4757; --inn: #2ed573; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; }
         .hidden { display: none; }
-        .box { max-width: 450px; margin: 40px auto; background: #1c222d; padding: 30px; border-radius: 15px; border: 2px solid #3e4a61; }
-        input, select { width: 90%; padding: 12px; margin: 10px 0; border-radius: 5px; border: none; }
-        button { background: #5865f2; color: white; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .chat { height: 250px; background: #000; overflow-y: auto; text-align: left; padding: 10px; margin: 15px 0; border: 1px solid #444; }
-        .timer { font-size: 28px; color: #ff4757; }
-        .imposter { color: #ff4757; font-weight: bold; }
-        .innocent { color: #2ed573; font-weight: bold; }
+        .box { max-width: 500px; margin: 40px auto; background: var(--box); padding: 30px; border-radius: 20px; border: 1px solid #3e4a61; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h1 { letter-spacing: 5px; color: var(--p); }
+        input, select { width: 90%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #333; background: #000; color: #fff; font-size: 16px; }
+        button { background: var(--p); color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 90%; margin: 10px 0; font-size: 16px; }
+        button:hover { filter: brightness(1.2); }
+        .chat { height: 300px; background: #0a0c10; overflow-y: auto; text-align: left; padding: 15px; margin: 15px 0; border-radius: 10px; border: 1px solid #333; }
+        .chat p { margin: 5px 0; border-bottom: 1px solid #222; padding-bottom: 5px; }
+        .timer { font-size: 32px; color: var(--imp); font-weight: bold; margin: 10px; }
+        .role-card { padding: 20px; border-radius: 10px; margin-bottom: 20px; font-size: 20px; }
+        .vote-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .status-bar { display: flex; justify-content: space-around; font-size: 14px; color: #aaa; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -21,135 +27,228 @@
 <div id="app">
     <div id="screen-login" class="box">
         <h1>BLYKIO</h1>
-        <input type="text" id="name" placeholder="Användarnamn">
-        <button onclick="login()">STARTA</button>
+        <p>Välj ett användarnamn för att spela online</p>
+        <input type="text" id="username" placeholder="Ditt namn...">
+        <button onclick="login()">ANSLUT</button>
     </div>
 
     <div id="screen-menu" class="box hidden">
-        <h2>Välkommen <span id="my-name"></span></h2>
+        <h1>BLYKIO</h1>
+        <p>Välkommen, <span id="display-name" style="color:var(--p)"></span>!</p>
         <button onclick="showScreen('screen-create')">CREATE MATCH</button>
         <button onclick="showScreen('screen-join')">FIND MATCH</button>
     </div>
 
     <div id="screen-create" class="box hidden">
-        <h3>Inställningar</h3>
-        Kategori: <select id="cat">
-            <option>Animals</option><option>Food</option><option>Famous People</option><option>Objects</option>
-        </select><br>
-        Max spelare: <input type="number" id="maxp" value="4"><br>
-        Imposters: <input type="number" id="impcount" value="1"><br>
-        Public: <input type="checkbox" id="ispublic" checked><br>
-        <button onclick="createMatch()">SKAPA</button>
+        <h2>Matchinställningar</h2>
+        <label>Kategori:</label>
+        <select id="setting-cat">
+            <option value="Animals">Animals</option>
+            <option value="Food">Food</option>
+            <option value="Famous People">Famous People</option>
+            <option value="Objects">Objects</option>
+        </select>
+        <label>Max spelare:</label>
+        <input type="number" id="setting-max" value="4" min="3">
+        <label>Antal Imposters:</label>
+        <input type="number" id="setting-imp" value="1" min="1">
+        <label>Privat Match (Endast kod): <input type="checkbox" id="setting-private"></label>
+        <button onclick="createMatch()">SKAPA LOBBY</button>
+        <button onclick="showScreen('screen-menu')" style="background:#444">TILLBAKA</button>
     </div>
 
     <div id="screen-join" class="box hidden">
-        <input type="text" id="joincode" placeholder="Ange kod">
-        <button onclick="joinByCode()">JOIN CODE</button>
-        <hr>
-        <div id="public-list">Söker efter matcher...</div>
+        <h2>Hitta Match</h2>
+        <input type="text" id="join-code-input" placeholder="Skriv matchkod...">
+        <button onclick="joinByCode()">JOIN MED KOD</button>
+        <hr style="border: 0.5px solid #333; margin: 20px 0;">
+        <div id="public-games-list">Söker efter publika spel...</div>
+        <button onclick="showScreen('screen-menu')" style="background:#444">TILLBAKA</button>
     </div>
 
     <div id="screen-game" class="box hidden">
-        <div id="role-info"></div>
-        <div class="timer" id="timer">20</div>
-        <div class="chat" id="chat"></div>
-        <div id="input-area">
-            <p id="turn-msg"></p>
-            <input type="text" id="word-input" placeholder="Ditt ord...">
-            <button onclick="sendWord()">SKICKA</button>
+        <div class="status-bar">
+            <span>Kod: <b id="match-id-display"></b></span>
+            <span>Spelare: <b id="player-count-display">0/0</b></span>
         </div>
-        <div id="vote-area" class="hidden">
-            <h3>VEM ÄR IMPOSTER?</h3>
-            <div id="player-btns"></div>
+
+        <div id="game-lobby-area">
+            <h3>Väntar på spelare...</h3>
+            <div id="lobby-list" style="text-align:left; margin-bottom:20px;"></div>
+            <button id="start-btn" class="hidden" onclick="requestStart()">STARTA SPELET</button>
+        </div>
+
+        <div id="game-play-area" class="hidden">
+            <div id="role-box" class="role-card"></div>
+            <div class="timer" id="game-timer">20</div>
+            <div class="chat" id="game-chat"></div>
+            
+            <div id="turn-input-container">
+                <p id="turn-indicator" style="font-weight:bold; color:var(--p)"></p>
+                <input type="text" id="word-input" placeholder="Skriv ett ord...">
+                <button onclick="sendWord()">SKICKA</button>
+            </div>
+
+            <div id="vote-section" class="hidden">
+                <h2 style="color:var(--imp)">VOTERING!</h2>
+                <p>Vem tror du är Imposter?</p>
+                <div id="vote-btns" class="vote-grid"></div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    const socket = io('http://DIN_VPS_IP:3000'); // ÄNDRA HÄR!
-    let myData = { name: '', roomId: '', role: '', word: '' };
-    let timerInterval;
+    // ÄNDRA TILL DIN VPS IP HÄR!
+    const socket = io('http://194.164.206.144:3000'); 
+
+    let myData = { name: '', roomId: '', role: '', word: '', isMyTurn: false };
+    let timer;
+
+    function showScreen(id) {
+        document.querySelectorAll('.box').forEach(s => s.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
 
     function login() {
-        myData.name = document.getElementById('name').value;
-        if(myData.name) showScreen('screen-menu');
-        document.getElementById('my-name').innerText = myData.name;
+        myData.name = document.getElementById('username').value;
+        if(!myData.name) return alert("Skriv ett namn!");
+        document.getElementById('display-name').innerText = myData.name;
+        showScreen('screen-menu');
     }
 
     function createMatch() {
         const settings = {
-            category: document.getElementById('cat').value,
-            maxPlayers: document.getElementById('maxp').value,
-            imposterCount: document.getElementById('impcount').value,
-            isPublic: document.getElementById('ispublic').checked
+            category: document.getElementById('setting-cat').value,
+            maxPlayers: parseInt(document.getElementById('setting-max').value),
+            imposterCount: parseInt(document.getElementById('setting-imp').value),
+            isPublic: !document.getElementById('setting-private').checked
         };
         socket.emit('createMatch', { name: myData.name, settings });
     }
 
+    function joinByCode() {
+        const code = document.getElementById('join-code-input').value.toUpperCase();
+        socket.emit('joinMatch', { name: myData.name, code });
+    }
+
     socket.on('matchCreated', (room) => {
-        myData.roomId = room.id;
-        showScreen('screen-game');
-        document.getElementById('chat').innerHTML = `<p>Rum skapat! Kod: <b>${room.id}</b></p>`;
-        document.getElementById('turn-msg').innerHTML = `<button onclick="startGame()">STARTA SPELET</button>`;
+        setupLobby(room);
     });
 
-    function startGame() {
+    socket.on('updatePlayers', (players) => {
+        const list = document.getElementById('lobby-list');
+        list.innerHTML = "<b>Anslutna:</b><br>" + players.map(p => "• " + p.name).join('<br>');
+        document.getElementById('player-count-display').innerText = `${players.length}/4`;
+        
+        // Visa startknapp endast för admin (första spelaren)
+        if (socket.id === players[0].id) {
+            document.getElementById('start-btn').classList.remove('hidden');
+        }
+    });
+
+    function setupLobby(room) {
+        myData.roomId = room.id;
+        document.getElementById('match-id-display').innerText = room.id;
+        showScreen('screen-game');
+    }
+
+    function requestStart() {
         socket.emit('startGame', myData.roomId);
     }
 
     socket.on('gameStarted', (data) => {
-        const isImp = data.imposters.includes(socket.id);
-        myData.role = isImp ? 'IMPOSTER' : 'INNOCENT';
+        document.getElementById('game-lobby-area').classList.add('hidden');
+        document.getElementById('game-play-area').classList.remove('hidden');
         
-        const info = document.getElementById('role-info');
+        const isImp = data.imposters.includes(socket.id);
+        const roleBox = document.getElementById('role-box');
+        
         if(isImp) {
-            info.innerHTML = `<h2 class="imposter">Du är IMPOSTER</h2><p>Du vet inte ordet! Försök passa in.</p>`;
+            roleBox.innerHTML = `<b class="imposter">DU ÄR IMPOSTER</b><br>Försök gissa ordet!`;
+            roleBox.style.border = "2px solid var(--imp)";
         } else {
-            info.innerHTML = `<h2 class="innocent">Du är INNOCENT</h2><p>Ordet är: <b>${data.word}</b></p>`;
+            roleBox.innerHTML = `<b class="innocent">DU ÄR INNOCENT</b><br>Ordet är: <b>${data.word}</b>`;
+            roleBox.style.border = "2px solid var(--inn)";
         }
-        updateTurn(data.turnPlayer);
+        
+        updateTurnUI(data.turnPlayer);
     });
 
-    function updateTurn(name) {
-        document.getElementById('turn-msg').innerText = name === myData.name ? "DIN TUR!" : `Väntar på ${name}...`;
-        if(name === myData.name) startTimer();
+    function updateTurnUI(activePlayerName) {
+        const indicator = document.getElementById('turn-indicator');
+        const inputContainer = document.getElementById('turn-input-container');
+        
+        if(activePlayerName === myData.name) {
+            indicator.innerText = "DET ÄR DIN TUR! Skriv ett ord.";
+            inputContainer.style.opacity = "1";
+            inputContainer.style.pointerEvents = "auto";
+            startTimer();
+        } else {
+            indicator.innerText = `Väntar på ${activePlayerName}...`;
+            inputContainer.style.opacity = "0.5";
+            inputContainer.style.pointerEvents = "none";
+            stopTimer();
+        }
     }
 
     function startTimer() {
-        let sec = 20;
-        clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
-            sec--;
-            document.getElementById('timer').innerText = sec;
-            if(sec <= 0) {
-                clearInterval(timerInterval);
-                sendWord(); // Skicka tomt om tiden går ut
+        let timeLeft = 20;
+        document.getElementById('game-timer').innerText = timeLeft;
+        clearInterval(timer);
+        timer = setInterval(() => {
+            timeLeft--;
+            document.getElementById('game-timer').innerText = timeLeft;
+            if(timeLeft <= 0) {
+                sendWord(); // Skicka automatiskt om tiden tar slut
             }
         }, 1000);
     }
 
+    function stopTimer() {
+        clearInterval(timer);
+        document.getElementById('game-timer').innerText = "20";
+    }
+
     function sendWord() {
-        const val = document.getElementById('word-input').value;
-        socket.emit('sendWord', { roomId: myData.roomId, name: myData.name, word: val });
-        document.getElementById('word-input').value = '';
-        clearInterval(timerInterval);
+        const input = document.getElementById('word-input');
+        const word = input.value || "(inget ord)";
+        socket.emit('sendWord', { roomId: myData.roomId, name: myData.name, word: word });
+        input.value = "";
+        stopTimer();
     }
 
     socket.on('newWord', (data) => {
-        document.getElementById('chat').innerHTML += `<p><b>${data.sender}:</b> ${data.word}</p>`;
+        const chat = document.getElementById('game-chat');
+        chat.innerHTML += `<p><strong>${data.sender}:</strong> ${data.word}</p>`;
+        chat.scrollTop = chat.scrollHeight;
+
         if(data.isVoteTime) {
-            document.getElementById('input-area').classList.add('hidden');
-            document.getElementById('vote-area').classList.remove('hidden');
-            // Här lägger du till röstningsknappar...
+            showVoting(data.allPlayers);
         } else {
-            updateTurn(data.nextTurn);
+            updateTurnUI(data.nextTurn);
         }
     });
 
-    function showScreen(id) {
-        document.querySelectorAll('.box').forEach(b => b.classList.add('hidden'));
-        document.getElementById(id).classList.remove('hidden');
+    function showVoting(players) {
+        document.getElementById('turn-input-container').classList.add('hidden');
+        document.getElementById('vote-section').classList.remove('hidden');
+        const btnContainer = document.getElementById('vote-btns');
+        btnContainer.innerHTML = "";
+        
+        players.forEach(p => {
+            const btn = document.createElement('button');
+            btn.innerText = p.name;
+            btn.onclick = () => {
+                alert("Du röstade på " + p.name);
+                btnContainer.innerHTML = "Väntar på andra...";
+            };
+            btnContainer.appendChild(btn);
+        });
     }
+
+    socket.on('error', (msg) => alert(msg));
 </script>
+
 </body>
 </html>
