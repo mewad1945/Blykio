@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <title>BLYKIO - Online</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { background: #0b0e14; color: white; font-family: 'Arial', sans-serif; text-align: center; }
+        .hidden { display: none; }
+        .box { max-width: 450px; margin: 40px auto; background: #1c222d; padding: 30px; border-radius: 15px; border: 2px solid #3e4a61; }
+        input, select { width: 90%; padding: 12px; margin: 10px 0; border-radius: 5px; border: none; }
+        button { background: #5865f2; color: white; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .chat { height: 250px; background: #000; overflow-y: auto; text-align: left; padding: 10px; margin: 15px 0; border: 1px solid #444; }
+        .timer { font-size: 28px; color: #ff4757; }
+        .imposter { color: #ff4757; font-weight: bold; }
+        .innocent { color: #2ed573; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="screen-login" class="box">
+        <h1>BLYKIO</h1>
+        <input type="text" id="name" placeholder="Användarnamn">
+        <button onclick="login()">STARTA</button>
+    </div>
+
+    <div id="screen-menu" class="box hidden">
+        <h2>Välkommen <span id="my-name"></span></h2>
+        <button onclick="showScreen('screen-create')">CREATE MATCH</button>
+        <button onclick="showScreen('screen-join')">FIND MATCH</button>
+    </div>
+
+    <div id="screen-create" class="box hidden">
+        <h3>Inställningar</h3>
+        Kategori: <select id="cat">
+            <option>Animals</option><option>Food</option><option>Famous People</option><option>Objects</option>
+        </select><br>
+        Max spelare: <input type="number" id="maxp" value="4"><br>
+        Imposters: <input type="number" id="impcount" value="1"><br>
+        Public: <input type="checkbox" id="ispublic" checked><br>
+        <button onclick="createMatch()">SKAPA</button>
+    </div>
+
+    <div id="screen-join" class="box hidden">
+        <input type="text" id="joincode" placeholder="Ange kod">
+        <button onclick="joinByCode()">JOIN CODE</button>
+        <hr>
+        <div id="public-list">Söker efter matcher...</div>
+    </div>
+
+    <div id="screen-game" class="box hidden">
+        <div id="role-info"></div>
+        <div class="timer" id="timer">20</div>
+        <div class="chat" id="chat"></div>
+        <div id="input-area">
+            <p id="turn-msg"></p>
+            <input type="text" id="word-input" placeholder="Ditt ord...">
+            <button onclick="sendWord()">SKICKA</button>
+        </div>
+        <div id="vote-area" class="hidden">
+            <h3>VEM ÄR IMPOSTER?</h3>
+            <div id="player-btns"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = io('http://DIN_VPS_IP:3000'); // ÄNDRA HÄR!
+    let myData = { name: '', roomId: '', role: '', word: '' };
+    let timerInterval;
+
+    function login() {
+        myData.name = document.getElementById('name').value;
+        if(myData.name) showScreen('screen-menu');
+        document.getElementById('my-name').innerText = myData.name;
+    }
+
+    function createMatch() {
+        const settings = {
+            category: document.getElementById('cat').value,
+            maxPlayers: document.getElementById('maxp').value,
+            imposterCount: document.getElementById('impcount').value,
+            isPublic: document.getElementById('ispublic').checked
+        };
+        socket.emit('createMatch', { name: myData.name, settings });
+    }
+
+    socket.on('matchCreated', (room) => {
+        myData.roomId = room.id;
+        showScreen('screen-game');
+        document.getElementById('chat').innerHTML = `<p>Rum skapat! Kod: <b>${room.id}</b></p>`;
+        document.getElementById('turn-msg').innerHTML = `<button onclick="startGame()">STARTA SPELET</button>`;
+    });
+
+    function startGame() {
+        socket.emit('startGame', myData.roomId);
+    }
+
+    socket.on('gameStarted', (data) => {
+        const isImp = data.imposters.includes(socket.id);
+        myData.role = isImp ? 'IMPOSTER' : 'INNOCENT';
+        
+        const info = document.getElementById('role-info');
+        if(isImp) {
+            info.innerHTML = `<h2 class="imposter">Du är IMPOSTER</h2><p>Du vet inte ordet! Försök passa in.</p>`;
+        } else {
+            info.innerHTML = `<h2 class="innocent">Du är INNOCENT</h2><p>Ordet är: <b>${data.word}</b></p>`;
+        }
+        updateTurn(data.turnPlayer);
+    });
+
+    function updateTurn(name) {
+        document.getElementById('turn-msg').innerText = name === myData.name ? "DIN TUR!" : `Väntar på ${name}...`;
+        if(name === myData.name) startTimer();
+    }
+
+    function startTimer() {
+        let sec = 20;
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            sec--;
+            document.getElementById('timer').innerText = sec;
+            if(sec <= 0) {
+                clearInterval(timerInterval);
+                sendWord(); // Skicka tomt om tiden går ut
+            }
+        }, 1000);
+    }
+
+    function sendWord() {
+        const val = document.getElementById('word-input').value;
+        socket.emit('sendWord', { roomId: myData.roomId, name: myData.name, word: val });
+        document.getElementById('word-input').value = '';
+        clearInterval(timerInterval);
+    }
+
+    socket.on('newWord', (data) => {
+        document.getElementById('chat').innerHTML += `<p><b>${data.sender}:</b> ${data.word}</p>`;
+        if(data.isVoteTime) {
+            document.getElementById('input-area').classList.add('hidden');
+            document.getElementById('vote-area').classList.remove('hidden');
+            // Här lägger du till röstningsknappar...
+        } else {
+            updateTurn(data.nextTurn);
+        }
+    });
+
+    function showScreen(id) {
+        document.querySelectorAll('.box').forEach(b => b.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
+</script>
+</body>
+</html>
