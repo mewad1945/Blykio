@@ -1,9 +1,18 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path'); // Behövs för att hitta rätt mappar
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+// --- SERVE STATIC FILES (Gör så att index.html syns) ---
+app.use(express.static(__dirname));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // --- ORDLISTOR (100 per kategori) ---
 const categories = {
@@ -41,9 +50,6 @@ io.on('connection', (socket) => {
             room.players.push({ id: socket.id, name: data.name });
             socket.join(data.code);
             io.to(data.code).emit('updatePlayers', room.players);
-            if(room.players.length == room.settings.maxPlayers) {
-                // Auto-start om man vill här
-            }
         }
     });
 
@@ -55,7 +61,6 @@ io.on('connection', (socket) => {
         room.word = catWords[Math.floor(Math.random() * catWords.length)];
         room.status = 'playing';
 
-        // Slumpa imposters
         let playerIndices = [...Array(room.players.length).keys()];
         for(let i=0; i < room.settings.imposterCount; i++) {
             let idx = playerIndices.splice(Math.floor(Math.random() * playerIndices.length), 1)[0];
@@ -71,6 +76,7 @@ io.on('connection', (socket) => {
 
     socket.on('sendWord', (data) => {
         const room = rooms[data.roomId];
+        if(!room) return;
         room.turn++;
         if(room.turn >= room.players.length) {
             room.turn = 0;
