@@ -36,9 +36,19 @@ io.on('connection', (socket) => {
         socket.emit('matchCreated', rooms[roomId]);
     });
 
+    socket.on('getPublicGames', () => {
+        const list = Object.values(rooms)
+            .filter(r => r.status === 'lobby' && r.settings.isPublic)
+            .map(r => ({
+                id: r.id, host: r.hostName, players: r.players.length,
+                max: r.settings.maxPlayers, category: r.settings.category
+            }));
+        socket.emit('publicGamesList', list);
+    });
+
     socket.on('joinMatch', (data) => {
         const room = rooms[data.code];
-        if (!room) return socket.emit('error', 'Hittades inte!');
+        if (!room) return socket.emit('error', 'Match hittades inte!');
         if (room.players.length >= room.settings.maxPlayers) return socket.emit('error', 'Lobbyn är full!');
         
         room.players.push({ id: socket.id, name: data.name });
@@ -97,6 +107,8 @@ io.on('connection', (socket) => {
                 word: room.word
             });
             room.status = 'lobby';
+            room.totalMessagesSent = 0;
+            room.votes = {};
         }
     });
 
@@ -107,12 +119,11 @@ io.on('connection', (socket) => {
             if (playerIndex !== -1) {
                 const wasImposter = room.imposters.includes(socket.id);
                 room.players.splice(playerIndex, 1);
-                
                 if (room.hostId === socket.id) {
-                    io.to(roomId).emit('error', 'Party Leader lämnade. Matchen stängs.');
+                    io.to(roomId).emit('error', 'Värden lämnade.');
                     delete rooms[roomId];
                 } else if (room.status === 'playing' && wasImposter) {
-                    io.to(roomId).emit('error', 'Impostern flydde! Matchen avbryts.');
+                    io.to(roomId).emit('error', 'Impostern lämnade! Matchen slut.');
                     room.status = 'lobby';
                     io.to(roomId).emit('forceLobby');
                 } else {
