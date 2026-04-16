@@ -13,11 +13,13 @@ io.on('connection', (socket) => {
         rooms[roomId] = {
             id: roomId,
             hostId: socket.id,
+            hostName: data.name,
             players: [{ id: socket.id, name: data.name }],
-            settings: data.settings,
+            settings: data.settings, // Inkluderar rounds, imposterCount, category
             status: 'lobby',
             word: '',
             imposters: [],
+            currentRound: 1,
             turnIndex: 0,
             votes: {}
         };
@@ -26,13 +28,17 @@ io.on('connection', (socket) => {
     });
 
     socket.on('getPublicGames', () => {
-        const publicGames = Object.values(rooms)
-            .filter(r => r.settings.isPublic && r.status === 'lobby')
+        const list = Object.values(rooms)
+            .filter(r => r.status === 'lobby')
             .map(r => ({
-                id: r.id, host: r.players[0].name, players: r.players.length,
-                max: r.settings.maxPlayers, category: r.settings.category
+                id: r.id,
+                host: r.hostName,
+                players: r.players.length,
+                max: r.settings.maxPlayers,
+                category: r.settings.category,
+                rounds: r.settings.rounds
             }));
-        socket.emit('publicGamesList', publicGames);
+        socket.emit('publicGamesList', list);
     });
 
     socket.on('joinMatch', (data) => {
@@ -47,14 +53,18 @@ io.on('connection', (socket) => {
     });
 
     socket.on('startGame', (roomId) => {
+        startNewRound(roomId);
+    });
+
+    function startNewRound(roomId) {
         const room = rooms[roomId];
         if (!room) return;
 
         const wordPool = {
-            'Animals': ['Lejon', 'Elefant', 'Giraff', 'Haj', 'Panda', 'Krokodil'],
-            'Food': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Hamburgare', 'Pannkaka'],
-            'Famous People': ['Zlatan', 'Einstein', 'Elon Musk', 'Beyoncé', 'Messi'],
-            'Objects': ['Hammare', 'Klocka', 'Telefon', 'Paraply', 'Kamera']
+            'Animals': ['Lejon', 'Giraff', 'Haj', 'Panda', 'Krokodil', 'Pingvin', 'Tiger'],
+            'Food': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Kebab', 'Hamburgare', 'Croissant'],
+            'Famous People': ['Zlatan', 'Elon Musk', 'Beyonce', 'Messi', 'Trump', 'Ronaldo'],
+            'Objects': ['Hammare', 'Klocka', 'Telefon', 'Paraply', 'Kamera', 'Skiftnyckel']
         };
         
         const words = wordPool[room.settings.category] || wordPool['Animals'];
@@ -70,13 +80,15 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameStarted', {
             word: room.word,
             imposters: room.imposters,
-            turnPlayer: room.players[0].name
+            turnPlayer: room.players[0].name,
+            currentRound: room.currentRound,
+            totalRounds: room.settings.rounds
         });
-    });
+    }
 
     socket.on('sendWord', (data) => {
         const room = rooms[data.roomId];
-        if (!room) return;
+        if (!room || room.status !== 'playing') return;
 
         room.turnIndex++;
         if (room.turnIndex >= room.players.length) {
@@ -104,13 +116,22 @@ io.on('connection', (socket) => {
             const isCorrect = room.imposters.includes(votedOutId);
             const votedOutName = room.players.find(p => p.id === votedOutId).name;
 
-            io.to(data.roomId).emit('gameResult', {
+            const isGameOver = room.currentRound >= parseInt(room.settings.rounds);
+            
+            io.to(data.roomId).emit('roundResult', {
                 isCorrect,
                 votedOutName,
                 imposters: room.players.filter(p => room.imposters.includes(p.id)).map(p => p.name),
-                word: room.word
+                word: room.word,
+                isGameOver
             });
-            room.status = 'lobby';
+
+            if (!isGameOver) {
+                room.currentRound++;
+                room.status = 'lobby'; // Väntar på att host ska starta nästa runda
+            } else {
+                delete rooms[data.roomId]; // Stäng matchen efter sista rundan
+            }
         }
     });
 
@@ -119,12 +140,9 @@ io.on('connection', (socket) => {
             if (rooms[roomId].hostId === socket.id) {
                 io.to(roomId).emit('leaderLeft');
                 delete rooms[roomId];
-            } else {
-                rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== socket.id);
-                io.to(roomId).emit('updatePlayers', { players: rooms[roomId].players, maxPlayers: rooms[roomId].settings.maxPlayers });
             }
         }
     });
 });
 
-http.listen(3000, () => console.log('BLYKIO Server aktiv på port 3000'));
+http.listen(3000, () => console.log('Blykio Server: 3000'));
