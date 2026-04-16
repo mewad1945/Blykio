@@ -8,7 +8,6 @@ app.use(express.static(__dirname));
 let rooms = {};
 
 io.on('connection', (socket) => {
-    // SKAPA MATCH
     socket.on('createMatch', (data) => {
         const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
         rooms[roomId] = {
@@ -20,37 +19,47 @@ io.on('connection', (socket) => {
             word: '',
             imposters: [],
             turnIndex: 0,
-            votes: {} // Sparar vem som röstat på vem
+            votes: {}
         };
         socket.join(roomId);
         socket.emit('matchCreated', rooms[roomId]);
     });
 
-    // GÅ MED
+    socket.on('getPublicGames', () => {
+        const publicGames = Object.values(rooms)
+            .filter(r => r.settings.isPublic && r.status === 'lobby')
+            .map(r => ({
+                id: r.id, host: r.players[0].name, players: r.players.length,
+                max: r.settings.maxPlayers, category: r.settings.category
+            }));
+        socket.emit('publicGamesList', publicGames);
+    });
+
     socket.on('joinMatch', (data) => {
         const room = rooms[data.code];
         if (!room) return socket.emit('error', 'Matchen hittades inte!');
+        if (room.players.length >= room.settings.maxPlayers) return socket.emit('error', 'Lobbyn är full!');
+        
         room.players.push({ id: socket.id, name: data.name });
         socket.join(data.code);
         socket.emit('matchJoined', room);
         io.to(data.code).emit('updatePlayers', { players: room.players, maxPlayers: room.settings.maxPlayers });
     });
 
-    // STARTA SPELET
     socket.on('startGame', (roomId) => {
         const room = rooms[roomId];
         if (!room) return;
 
         const wordPool = {
-            'Animals': ['Lejon', 'Giraff', 'Panda', 'Haj'],
-            'Food': ['Taco', 'Sushi', 'Hamburgare', 'Kebab'],
-            'Objects': ['Hammare', 'Dator', 'Klocka', 'Solglasögon']
+            'Animals': ['Lejon', 'Elefant', 'Giraff', 'Haj', 'Panda', 'Krokodil'],
+            'Food': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Hamburgare', 'Pannkaka'],
+            'Famous People': ['Zlatan', 'Einstein', 'Elon Musk', 'Beyoncé', 'Messi'],
+            'Objects': ['Hammare', 'Klocka', 'Telefon', 'Paraply', 'Kamera']
         };
-        const category = room.settings.category;
-        const words = wordPool[category] || wordPool['Animals'];
+        
+        const words = wordPool[room.settings.category] || wordPool['Animals'];
         room.word = words[Math.floor(Math.random() * words.length)];
         
-        // Slumpa Imposters baserat på inställning
         let shuffled = [...room.players].sort(() => 0.5 - Math.random());
         room.imposters = shuffled.slice(0, room.settings.imposterCount).map(p => p.id);
         
@@ -65,15 +74,12 @@ io.on('connection', (socket) => {
         });
     });
 
-    // HANTERA ORD & RÖSTNINGSFAS
     socket.on('sendWord', (data) => {
         const room = rooms[data.roomId];
         if (!room) return;
 
         room.turnIndex++;
-        
         if (room.turnIndex >= room.players.length) {
-            // Alla har pratat -> Gå till röstning
             io.to(data.roomId).emit('startVoting', { players: room.players });
         } else {
             const nextPlayer = room.players[room.turnIndex];
@@ -85,16 +91,12 @@ io.on('connection', (socket) => {
         }
     });
 
-    // SAMLA RÖSTER
     socket.on('castVote', (data) => {
         const room = rooms[data.roomId];
         if (!room) return;
-
         room.votes[socket.id] = data.targetId;
 
-        // Om alla har röstat
         if (Object.keys(room.votes).length === room.players.length) {
-            // Räkna vem som fick flest röster
             const voteCounts = {};
             Object.values(room.votes).forEach(id => voteCounts[id] = (voteCounts[id] || 0) + 1);
             const votedOutId = Object.keys(voteCounts).reduce((a, b) => voteCounts[a] > voteCounts[b] ? a : b);
@@ -112,15 +114,17 @@ io.on('connection', (socket) => {
         }
     });
 
-    // PARTY LEADER DISCONNECT
     socket.on('disconnect', () => {
         for (const roomId in rooms) {
             if (rooms[roomId].hostId === socket.id) {
                 io.to(roomId).emit('leaderLeft');
                 delete rooms[roomId];
+            } else {
+                rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== socket.id);
+                io.to(roomId).emit('updatePlayers', { players: rooms[roomId].players, maxPlayers: rooms[roomId].settings.maxPlayers });
             }
         }
     });
 });
 
-http.listen(3000, () => console.log('Blykio rullar!'));
+http.listen(3000, () => console.log('BLYKIO Server aktiv på port 3000'));
