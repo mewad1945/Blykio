@@ -28,35 +28,18 @@ io.on('connection', (socket) => {
     socket.on('createMatch', (data) => {
         const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
         rooms[roomId] = {
-            id: roomId,
-            hostId: socket.id,
-            hostName: data.name,
+            id: roomId, hostId: socket.id, hostName: data.name,
             players: [{ id: socket.id, name: data.name }],
-            settings: data.settings, 
-            status: 'lobby',
-            word: '',
-            imposters: [],
-            totalMessagesSent: 0,
-            votes: {}
+            settings: data.settings, status: 'lobby', word: '', imposters: [], totalMessagesSent: 0, votes: {}
         };
         socket.join(roomId);
         socket.emit('matchCreated', rooms[roomId]);
     });
 
-    socket.on('getPublicGames', () => {
-        const list = Object.values(rooms)
-            .filter(r => r.status === 'lobby' && r.settings.isPublic)
-            .map(r => ({
-                id: r.id, host: r.hostName, players: r.players.length,
-                max: r.settings.maxPlayers, category: r.settings.category
-            }));
-        socket.emit('publicGamesList', list);
-    });
-
     socket.on('joinMatch', (data) => {
         const room = rooms[data.code];
         if (!room) return socket.emit('error', 'Hittades inte!');
-        if (room.players.length >= room.settings.maxPlayers) return socket.emit('error', 'Fullt!');
+        if (room.players.length >= room.settings.maxPlayers) return socket.emit('error', 'Lobbyn är full!');
         
         room.players.push({ id: socket.id, name: data.name });
         socket.join(data.code);
@@ -67,43 +50,35 @@ io.on('connection', (socket) => {
     socket.on('startGame', (roomId) => {
         const room = rooms[roomId];
         if (!room) return;
-
         const lang = room.settings.language || 'sv';
-        const cat = room.settings.category;
-        const pool = wordPools[lang][cat] || wordPools['sv']['Djur 🦁'];
+        const pool = wordPools[lang][room.settings.category];
         room.word = pool[Math.floor(Math.random() * pool.length)];
-        
         let shuffled = [...room.players].sort(() => 0.5 - Math.random());
         room.imposters = shuffled.slice(0, parseInt(room.settings.imposterCount)).map(p => p.id);
-        
         room.status = 'playing';
-        room.totalMessagesSent = 0;
-        room.votes = {};
+        io.to(roomId).emit('preparingGame', { imposters: room.imposters, word: room.word });
+    });
 
-        io.to(roomId).emit('gameStarted', {
-            word: room.word,
-            imposters: room.imposters,
-            turnPlayer: room.players[0].name,
-            turnsPerPlayer: room.settings.turnsPerPlayer
-        });
+    socket.on('gameReady', (roomId) => {
+        const room = rooms[roomId];
+        if(room) {
+            io.to(roomId).emit('gameStarted', {
+                word: room.word, imposters: room.imposters,
+                turnPlayer: room.players[0].name, turnsPerPlayer: room.settings.turnsPerPlayer
+            });
+        }
     });
 
     socket.on('sendWord', (data) => {
         const room = rooms[data.roomId];
         if (!room || room.status !== 'playing') return;
-
         room.totalMessagesSent++;
         const nextIndex = room.totalMessagesSent % room.players.length;
-
         if (room.totalMessagesSent >= (room.players.length * room.settings.turnsPerPlayer)) {
             io.to(data.roomId).emit('newWord', { sender: data.name, word: data.word });
             io.to(data.roomId).emit('startVoting', { players: room.players });
         } else {
-            io.to(data.roomId).emit('newWord', {
-                sender: data.name,
-                word: data.word,
-                nextTurn: room.players[nextIndex].name
-            });
+            io.to(data.roomId).emit('newWord', { sender: data.name, word: data.word, nextTurn: room.players[nextIndex].name });
         }
     });
 
@@ -111,18 +86,13 @@ io.on('connection', (socket) => {
         const room = rooms[data.roomId];
         if (!room) return;
         room.votes[socket.id] = data.targetId;
-
         if (Object.keys(room.votes).length === room.players.length) {
             const voteCounts = {};
             Object.values(room.votes).forEach(id => voteCounts[id] = (voteCounts[id] || 0) + 1);
             const votedOutId = Object.keys(voteCounts).reduce((a, b) => voteCounts[a] > voteCounts[b] ? a : b);
-            
-            const isCorrect = room.imposters.includes(votedOutId);
-            const votedOutName = room.players.find(p => p.id === votedOutId).name;
-
             io.to(data.roomId).emit('roundResult', {
-                isCorrect,
-                votedOutName,
+                isCorrect: room.imposters.includes(votedOutId),
+                votedOutName: room.players.find(p => p.id === votedOutId).name,
                 imposters: room.players.filter(p => room.imposters.includes(p.id)).map(p => p.name),
                 word: room.word
             });
@@ -132,9 +102,22 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         for (const roomId in rooms) {
-            if (rooms[roomId].hostId === socket.id) {
-                io.to(roomId).emit('leaderLeft');
-                delete rooms[roomId];
+            const room = rooms[roomId];
+            const playerIndex = room.players.findIndex(p => p.id === socket.id);
+            if (playerIndex !== -1) {
+                const wasImposter = room.imposters.includes(socket.id);
+                room.players.splice(playerIndex, 1);
+                
+                if (room.hostId === socket.id) {
+                    io.to(roomId).emit('error', 'Party Leader lämnade. Matchen stängs.');
+                    delete rooms[roomId];
+                } else if (room.status === 'playing' && wasImposter) {
+                    io.to(roomId).emit('error', 'Impostern flydde! Matchen avbryts.');
+                    room.status = 'lobby';
+                    io.to(roomId).emit('forceLobby');
+                } else {
+                    io.to(roomId).emit('updatePlayers', { players: room.players });
+                }
             }
         }
     });
