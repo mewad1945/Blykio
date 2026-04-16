@@ -15,12 +15,11 @@ io.on('connection', (socket) => {
             hostId: socket.id,
             hostName: data.name,
             players: [{ id: socket.id, name: data.name }],
-            settings: data.settings, // Inkluderar rounds, imposterCount, category
+            settings: data.settings, 
             status: 'lobby',
             word: '',
             imposters: [],
-            currentRound: 1,
-            turnIndex: 0,
+            totalMessagesSent: 0,
             votes: {}
         };
         socket.join(roomId);
@@ -31,74 +30,66 @@ io.on('connection', (socket) => {
         const list = Object.values(rooms)
             .filter(r => r.status === 'lobby')
             .map(r => ({
-                id: r.id,
-                host: r.hostName,
-                players: r.players.length,
-                max: r.settings.maxPlayers,
-                category: r.settings.category,
-                rounds: r.settings.rounds
+                id: r.id, host: r.hostName, players: r.players.length,
+                max: r.settings.maxPlayers, category: r.settings.category,
+                turns: r.settings.turnsPerPlayer
             }));
         socket.emit('publicGamesList', list);
     });
 
     socket.on('joinMatch', (data) => {
         const room = rooms[data.code];
-        if (!room) return socket.emit('error', 'Matchen hittades inte!');
-        if (room.players.length >= room.settings.maxPlayers) return socket.emit('error', 'Lobbyn är full!');
-        
+        if (!room) return socket.emit('error', 'Hittades inte!');
         room.players.push({ id: socket.id, name: data.name });
         socket.join(data.code);
         socket.emit('matchJoined', room);
-        io.to(data.code).emit('updatePlayers', { players: room.players, maxPlayers: room.settings.maxPlayers });
+        io.to(data.code).emit('updatePlayers', { players: room.players });
     });
 
     socket.on('startGame', (roomId) => {
-        startNewRound(roomId);
-    });
-
-    function startNewRound(roomId) {
         const room = rooms[roomId];
         if (!room) return;
 
         const wordPool = {
             'Animals': ['Lejon', 'Giraff', 'Haj', 'Panda', 'Krokodil', 'Pingvin', 'Tiger'],
-            'Food': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Kebab', 'Hamburgare', 'Croissant'],
-            'Famous People': ['Zlatan', 'Elon Musk', 'Beyonce', 'Messi', 'Trump', 'Ronaldo'],
-            'Objects': ['Hammare', 'Klocka', 'Telefon', 'Paraply', 'Kamera', 'Skiftnyckel']
+            'Food': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Kebab', 'Hamburgare'],
+            'Famous People': ['Zlatan', 'Elon Musk', 'Beyonce', 'Messi', 'Trump', 'Ronaldo']
         };
         
-        const words = wordPool[room.settings.category] || wordPool['Animals'];
-        room.word = words[Math.floor(Math.random() * words.length)];
+        const cat = room.settings.category;
+        room.word = wordPool[cat][Math.floor(Math.random() * wordPool[cat].length)];
         
         let shuffled = [...room.players].sort(() => 0.5 - Math.random());
         room.imposters = shuffled.slice(0, room.settings.imposterCount).map(p => p.id);
         
         room.status = 'playing';
-        room.turnIndex = 0;
+        room.totalMessagesSent = 0;
         room.votes = {};
 
         io.to(roomId).emit('gameStarted', {
             word: room.word,
             imposters: room.imposters,
             turnPlayer: room.players[0].name,
-            currentRound: room.currentRound,
-            totalRounds: room.settings.rounds
+            turnsPerPlayer: room.settings.turnsPerPlayer
         });
-    }
+    });
 
     socket.on('sendWord', (data) => {
         const room = rooms[data.roomId];
         if (!room || room.status !== 'playing') return;
 
-        room.turnIndex++;
-        if (room.turnIndex >= room.players.length) {
+        room.totalMessagesSent++;
+        const maxMessages = room.players.length * room.settings.turnsPerPlayer;
+        const nextIndex = room.totalMessagesSent % room.players.length;
+
+        if (room.totalMessagesSent >= maxMessages) {
+            io.to(data.roomId).emit('newWord', { sender: data.name, word: data.word });
             io.to(data.roomId).emit('startVoting', { players: room.players });
         } else {
-            const nextPlayer = room.players[room.turnIndex];
             io.to(data.roomId).emit('newWord', {
                 sender: data.name,
                 word: data.word,
-                nextTurn: nextPlayer.name
+                nextTurn: room.players[nextIndex].name
             });
         }
     });
@@ -116,22 +107,13 @@ io.on('connection', (socket) => {
             const isCorrect = room.imposters.includes(votedOutId);
             const votedOutName = room.players.find(p => p.id === votedOutId).name;
 
-            const isGameOver = room.currentRound >= parseInt(room.settings.rounds);
-            
             io.to(data.roomId).emit('roundResult', {
                 isCorrect,
                 votedOutName,
                 imposters: room.players.filter(p => room.imposters.includes(p.id)).map(p => p.name),
-                word: room.word,
-                isGameOver
+                word: room.word
             });
-
-            if (!isGameOver) {
-                room.currentRound++;
-                room.status = 'lobby'; // Väntar på att host ska starta nästa runda
-            } else {
-                delete rooms[data.roomId]; // Stäng matchen efter sista rundan
-            }
+            room.status = 'lobby';
         }
     });
 
