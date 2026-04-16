@@ -17,66 +17,62 @@
         button { background: var(--p); color: white; border: none; padding: 16px; border-radius: 15px; cursor: pointer; font-weight: 700; width: 100%; transition: 0.3s; margin-top: 5px; }
         button:hover { background: var(--p-dark); transform: translateY(-2px); }
         .secondary-btn { background: #2d3748; }
-        .match-card { background: rgba(255,255,255,0.03); border: 1px solid #2d3748; padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .chat { height: 220px; background: #0b101b; overflow-y: auto; padding: 15px; margin: 15px 0; border-radius: 20px; text-align: left; border: 1px solid #2d3748; }
-        .status-pill { background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 100px; font-size: 0.8rem; font-weight: bold; color: var(--accent); display: inline-block; margin-bottom: 10px;}
+        .status-pill { background: rgba(255,255,255,0.05); padding: 5px 15px; border-radius: 100px; font-size: 0.8rem; font-weight: bold; color: var(--accent); display: inline-block; }
         label { display: block; text-align: left; font-size: 0.75rem; color: #64748b; margin-bottom: 5px; font-weight: bold; }
+        
+        /* Intro overlay */
+        #intro-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.5s; }
+        .big-text { font-size: 4rem; font-weight: 900; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
+<div id="intro-overlay" class="hidden">
+    <div id="intro-role" class="big-text">DU ÄR...</div>
+    <div id="intro-timer" style="font-size: 2rem; margin-top: 20px; color: var(--accent);"></div>
+</div>
+
 <div id="app" style="width: 100%; display: flex; justify-content: center;">
     <div id="screen-login" class="box">
         <h1>BLYKIO</h1>
-        <label>VÄLJ SPRÅK / LANGUAGE</label>
-        <select id="user-lang">
-            <option value="sv">Svenska 🇸🇪</option>
-            <option value="en">English 🇬🇧</option>
-        </select>
+        <label>SPRÅK / LANGUAGE</label>
+        <select id="user-lang"><option value="sv">Svenska 🇸🇪</option><option value="en">English 🇬🇧</option></select>
         <input type="text" id="username" placeholder="Nickname...">
         <button onclick="login()">ANSLUT</button>
     </div>
 
     <div id="screen-menu" class="box hidden">
         <h1>BLYKIO</h1>
-        <p>Inloggad som <b id="display-name" style="color:var(--accent)"></b></p>
+        <p>Välkommen <b id="display-name" style="color:var(--accent)"></b></p>
         <button onclick="showScreen('screen-create')">SKAPA MATCH</button>
         <button class="secondary-btn" onclick="openFindMatch()">HITTA SPEL</button>
     </div>
 
     <div id="screen-create" class="box hidden">
-        <h2>Match-inställningar</h2>
+        <h2>Inställningar</h2>
         <label>KATEGORI</label>
         <select id="setting-cat"></select>
-        
+        <label>MAX SPELARE</label>
+        <select id="setting-max">
+            <option value="3">3 Spelare</option>
+            <option value="5" selected>5 Spelare</option>
+            <option value="8">8 Spelare</option>
+            <option value="12">12 Spelare</option>
+        </select>
         <label>IMPOSTERS</label>
-        <select id="setting-imp">
-            <option value="1">1 Imposter</option>
-            <option value="2">2 Imposters</option>
-        </select>
-
-        <label>LEDTRÅDAR PER PERSON</label>
-        <select id="setting-turns">
-            <option value="1">1 gång</option>
-            <option value="2" selected>2 gånger</option>
-            <option value="3">3 gånger</option>
-        </select>
-
+        <select id="setting-imp"><option value="1">1</option><option value="2">2</option></select>
         <label>SYNLIGHET</label>
-        <select id="setting-privacy">
-            <option value="public">Publik (Syns i listan)</option>
-            <option value="private">Privat (Bara kod)</option>
-        </select>
-
-        <button onclick="createMatch()">SKAPA LOBBY</button>
+        <select id="setting-privacy"><option value="public">Publik</option><option value="private">Privat</option></select>
+        <button onclick="createMatch()">SKAPA</button>
         <button onclick="showScreen('screen-menu')" class="secondary-btn">TILLBAKA</button>
     </div>
 
     <div id="screen-join" class="box hidden">
-        <h2>Aktiva Spel</h2>
-        <div id="public-games-list" style="max-height: 250px; overflow-y: auto;"></div>
-        <input type="text" id="join-code-input" placeholder="Ange kod (t.ex. X4Y2)..." style="margin-top:10px;">
-        <button onclick="joinByCode()">GÅ MED VIA KOD</button>
+        <h2>Matcher</h2>
+        <div id="public-games-list"></div>
+        <input type="text" id="join-code-input" placeholder="Kod...">
+        <button onclick="joinByCode()">GÅ MED</button>
         <button onclick="showScreen('screen-menu')" class="secondary-btn">TILLBAKA</button>
     </div>
 
@@ -84,33 +80,30 @@
         <div class="status-pill">KOD: <span id="match-id-display"></span></div>
         <div id="game-lobby-area">
             <div id="lobby-list" style="margin: 20px 0; text-align:left;"></div>
-            <button id="start-btn" class="hidden" onclick="socket.emit('startGame', myData.roomId)">STARTA SPELET</button>
+            <button id="start-btn" class="hidden" onclick="socket.emit('startGame', myData.roomId)">STARTA</button>
         </div>
         <div id="game-play-area" class="hidden">
-            <div id="role-box" style="padding:15px; border-radius:15px; margin-bottom:10px; font-weight:bold;"></div>
+            <div id="role-box" style="padding:15px; border-radius:15px; margin-bottom:10px; background: rgba(255,255,255,0.05);">
+                <span id="role-text-actual"></span>
+                <button id="toggle-word-btn" style="width: auto; padding: 5px 15px; font-size: 0.7rem; margin-top: 5px;" onclick="toggleWord()">DÖLJ ORD</button>
+            </div>
             <div class="chat" id="game-chat"></div>
             <p id="turn-indicator" style="font-weight:bold; color:var(--accent)"></p>
             <div id="turn-input-container">
-                <input type="text" id="word-input" placeholder="Din ledtråd...">
+                <input type="text" id="word-input" placeholder="Ledtråd...">
                 <button onclick="sendWord()">SKICKA</button>
             </div>
             <div id="voting-area" class="hidden">
-                <h3 style="color:var(--imp)">VEM ÄR IMPOSTER?</h3>
+                <h3>VEM ÄR IMPOSTER?</h3>
                 <div id="vote-list"></div>
             </div>
-        </div>
-        <div id="result-area" class="hidden">
-            <h2 id="result-title"></h2>
-            <p id="result-desc"></p>
-            <button onclick="location.reload()">TILL MENY</button>
         </div>
     </div>
 </div>
 
 <script>
     const socket = io('http://194.164.206.144:3000'); 
-    let myData = { name: '', roomId: '', lang: 'sv' };
-
+    let myData = { name: '', roomId: '', lang: 'sv', currentWord: '', isWordHidden: false };
     const categories = {
         'sv': ['Djur 🦁', 'Mat 🍕', 'Kändisar ⭐', 'Platser 🌍', 'Föremål 📦'],
         'en': ['Animals 🦁', 'Food 🍕', 'Famous People ⭐', 'Places 🌍', 'Objects 📦']
@@ -125,46 +118,22 @@
         myData.name = document.getElementById('username').value.trim();
         myData.lang = document.getElementById('user-lang').value;
         if(!myData.name) return;
-
-        // Uppdatera kategorier baserat på språk
-        const catSelect = document.getElementById('setting-cat');
-        catSelect.innerHTML = categories[myData.lang].map(c => `<option value="${c}">${c}</option>`).join('');
-        
+        document.getElementById('setting-cat').innerHTML = categories[myData.lang].map(c => `<option value="${c}">${c}</option>`).join('');
         document.getElementById('display-name').innerText = myData.name;
         showScreen('screen-menu');
     }
 
     function createMatch() {
-        const settings = {
-            language: myData.lang,
-            category: document.getElementById('setting-cat').value,
-            turnsPerPlayer: parseInt(document.getElementById('setting-turns').value),
-            imposterCount: document.getElementById('setting-imp').value,
+        socket.emit('createMatch', { name: myData.name, settings: {
+            language: myData.lang, category: document.getElementById('setting-cat').value,
+            turnsPerPlayer: 2, imposterCount: document.getElementById('setting-imp').value,
             isPublic: document.getElementById('setting-privacy').value === 'public',
-            maxPlayers: 10
-        };
-        socket.emit('createMatch', { name: myData.name, settings });
+            maxPlayers: parseInt(document.getElementById('setting-max').value)
+        }});
     }
 
-    function openFindMatch() {
-        showScreen('screen-join');
-        socket.emit('getPublicGames');
-    }
-
-    function joinByCode() {
-        const code = document.getElementById('join-code-input').value.trim().toUpperCase();
-        if(code) socket.emit('joinMatch', { name: myData.name, code });
-    }
-
-    socket.on('publicGamesList', list => {
-        const container = document.getElementById('public-games-list');
-        container.innerHTML = list.map(g => `
-            <div class="match-card" onclick="socket.emit('joinMatch', {name: myData.name, code: '${g.id}'})">
-                <div style="text-align:left"><b>${g.host}</b><br><small>${g.category}</small></div>
-                <span>${g.players}/10 👤</span>
-            </div>
-        `).join('') || "Inga publika matcher...";
-    });
+    function openFindMatch() { showScreen('screen-join'); socket.emit('getPublicGames'); }
+    function joinByCode() { socket.emit('joinMatch', { name: myData.name, code: document.getElementById('join-code-input').value.toUpperCase() }); }
 
     socket.on('matchCreated', room => setupLobby(room));
     socket.on('matchJoined', room => setupLobby(room));
@@ -176,28 +145,67 @@
         updateList(room.players);
     }
 
-    socket.on('updatePlayers', data => updateList(data.players));
-
     function updateList(players) {
         document.getElementById('lobby-list').innerHTML = players.map(p => `<div>👤 ${p.name}</div>`).join('');
         if (players[0].id === socket.id) document.getElementById('start-btn').classList.remove('hidden');
     }
 
+    socket.on('updatePlayers', data => updateList(data.players));
+
+    socket.on('preparingGame', data => {
+        const overlay = document.getElementById('intro-overlay');
+        const roleDiv = document.getElementById('intro-role');
+        const timerDiv = document.getElementById('intro-timer');
+        const isImp = data.imposters.includes(socket.id);
+        
+        overlay.classList.remove('hidden');
+        roleDiv.innerText = isImp ? "IMPOSTER 😈" : "INNOCENT 😇";
+        roleDiv.style.color = isImp ? "var(--imp)" : "var(--inn)";
+        
+        myData.currentWord = isImp ? (myData.lang === 'sv' ? "GUESS!" : "GUESS!") : data.word;
+        
+        let count = 3;
+        timerDiv.innerText = `Spelet börjar om ${count}...`;
+        const interval = setInterval(() => {
+            count--;
+            if(count > 0) timerDiv.innerText = `Spelet börjar om ${count}...`;
+            else {
+                clearInterval(interval);
+                overlay.classList.add('hidden');
+                socket.emit('gameReady', myData.roomId);
+            }
+        }, 1000);
+    });
+
     socket.on('gameStarted', data => {
         document.getElementById('game-lobby-area').classList.add('hidden');
         document.getElementById('game-play-area').classList.remove('hidden');
         document.getElementById('game-chat').innerHTML = "";
-        const isImp = data.imposters.includes(socket.id);
-        const rb = document.getElementById('role-box');
-        if(isImp) {
-            rb.innerHTML = "ROLE: <span style='color:var(--imp)'>IMPOSTER 😈</span><br>" + (myData.lang === 'sv' ? "Lura dem!" : "Deceive them!");
-            rb.style.background = "rgba(255, 71, 87, 0.1)";
-        } else {
-            rb.innerHTML = (myData.lang === 'sv' ? "ORDET: " : "WORD: ") + "<span style='color:var(--inn)'>" + data.word + "</span>";
-            rb.style.background = "rgba(46, 213, 115, 0.1)";
-        }
+        updateWordUI();
         updateUI(data.turnPlayer);
     });
+
+    function toggleWord() {
+        myData.isWordHidden = !myData.isWordHidden;
+        updateWordUI();
+    }
+
+    function updateWordUI() {
+        const text = document.getElementById('role-text-actual');
+        const btn = document.getElementById('toggle-word-btn');
+        if(myData.isWordHidden) {
+            text.innerText = "ORDET ÄR DOLD";
+            btn.innerText = "VISA ORD";
+        } else {
+            text.innerText = (myData.lang === 'sv' ? "ORD: " : "WORD: ") + myData.currentWord;
+            btn.innerText = "DÖLJ ORD";
+        }
+    }
+
+    function updateUI(p) {
+        document.getElementById('turn-indicator').innerText = (p === myData.name) ? "DIN TUR!" : `${p} skriver...`;
+        document.getElementById('turn-input-container').classList.toggle('hidden', p !== myData.name);
+    }
 
     function sendWord() {
         const val = document.getElementById('word-input').value.trim();
@@ -214,11 +222,6 @@
         if(data.nextTurn) updateUI(data.nextTurn);
     });
 
-    function updateUI(p) {
-        document.getElementById('turn-indicator').innerText = (p === myData.name) ? (myData.lang === 'sv' ? "DIN TUR!" : "YOUR TURN!") : `${p}...`;
-        document.getElementById('turn-input-container').classList.toggle('hidden', p !== myData.name);
-    }
-
     socket.on('startVoting', data => {
         document.getElementById('turn-input-container').classList.add('hidden');
         document.getElementById('voting-area').classList.remove('hidden');
@@ -227,16 +230,12 @@
         ).join('');
     });
 
-    socket.on('roundResult', data => {
+    socket.on('forceLobby', () => {
+        document.getElementById('game-lobby-area').classList.remove('hidden');
         document.getElementById('game-play-area').classList.add('hidden');
-        document.getElementById('result-area').classList.remove('hidden');
-        const winTxt = data.isCorrect ? (myData.lang === 'sv' ? "INNOCENTS VANN!" : "INNOCENTS WIN!") : (myData.lang === 'sv' ? "IMPOSTER VANN!" : "IMPOSTER WINS!");
-        document.getElementById('result-title').innerText = winTxt;
-        document.getElementById('result-desc').innerHTML = `Imposter: ${data.imposters.join(', ')}<br>Word: ${data.word}`;
     });
 
-    socket.on('leaderLeft', () => { location.reload(); });
-    socket.on('error', (msg) => alert(msg));
+    socket.on('error', (msg) => { alert(msg); if(msg.includes('Party Leader')) location.reload(); });
 </script>
 </body>
 </html>
