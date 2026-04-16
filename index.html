@@ -6,144 +6,23 @@
     <title>BLYKIO - Online</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        :root { 
-            --p: #6366f1; 
-            --p-dark: #4f46e5;
-            --bg: #0f172a; 
-            --box: #1e293b; 
-            --text: #f8fafc; 
-            --imp: #ef4444; 
-            --inn: #22c55e;
-            --accent: #38bdf8;
-        }
-
-        body { 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: 'Inter', 'Segoe UI', sans-serif; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0; 
-            overflow-x: hidden;
-        }
-
+        :root { --p: #6366f1; --p-dark: #4f46e5; --bg: #0f172a; --box: #1e293b; --text: #f8fafc; --imp: #ef4444; --inn: #22c55e; --accent: #38bdf8; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         .hidden { display: none !important; }
-
-        .box { 
-            width: 90%;
-            max-width: 450px; 
-            background: var(--box); 
-            padding: 40px; 
-            border-radius: 24px; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
-            transition: transform 0.3s ease;
-        }
-
-        h1 { 
-            font-size: 3rem;
-            font-weight: 800;
-            background: linear-gradient(to right, var(--p), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
-            letter-spacing: -2px;
-        }
-
+        .box { width: 90%; max-width: 450px; background: var(--box); padding: 40px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center; }
+        h1 { font-size: 3rem; font-weight: 800; background: linear-gradient(to right, var(--p), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; letter-spacing: -2px; }
         p { color: #94a3b8; margin-bottom: 25px; }
-
         label { display: block; text-align: left; margin: 10px 0 5px 5px; font-size: 0.9rem; font-weight: 600; color: #64748b; }
-
-        input, select { 
-            width: 100%; 
-            padding: 14px; 
-            margin-bottom: 15px; 
-            border-radius: 12px; 
-            border: 2px solid #334155; 
-            background: #0f172a; 
-            color: #fff; 
-            font-size: 16px;
-            box-sizing: border-box;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus { border-color: var(--p); }
-
-        button { 
-            background: var(--p); 
-            color: white; 
-            border: none; 
-            padding: 15px; 
-            border-radius: 12px; 
-            cursor: pointer; 
-            font-weight: 700; 
-            width: 100%; 
-            font-size: 1rem;
-            transition: all 0.2s;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            margin-top: 10px;
-        }
-
-        button:hover { 
-            background: var(--p-dark); 
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
-        }
-
+        input, select { width: 100%; padding: 14px; margin-bottom: 15px; border-radius: 12px; border: 2px solid #334155; background: #0f172a; color: #fff; font-size: 16px; box-sizing: border-box; outline: none; }
+        button { background: var(--p); color: white; border: none; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: 700; width: 100%; font-size: 1rem; transition: all 0.2s; margin-top: 10px; }
+        button:hover { background: var(--p-dark); transform: translateY(-2px); }
         .secondary-btn { background: #334155; margin-top: 15px; }
-        .secondary-btn:hover { background: #475569; }
-
-        /* Game UI */
-        .chat { 
-            height: 250px; 
-            background: #0f172a; 
-            overflow-y: auto; 
-            padding: 15px; 
-            margin: 20px 0; 
-            border-radius: 16px; 
-            border: 1px solid #334155;
-            font-size: 0.95rem;
-        }
-
-        .chat p { margin: 8px 0; color: #cbd5e1; border-bottom: none; }
-
-        .timer { font-size: 40px; color: var(--imp); font-weight: 900; margin: 20px 0; text-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
-
-        .role-card { 
-            padding: 25px; 
-            border-radius: 16px; 
-            margin-bottom: 25px; 
-            font-weight: 700;
-            background: rgba(255,255,255,0.03);
-        }
-
-        .status-bar { 
-            background: rgba(0,0,0,0.2);
-            padding: 10px 20px;
-            border-radius: 100px;
-            display: flex; 
-            justify-content: space-between; 
-            font-size: 13px; 
-            font-weight: 600;
-            color: #94a3b8; 
-            margin-bottom: 20px; 
-        }
-
-        .game-item {
-            background: #334155;
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-        }
-
-        .game-item:hover { background: #475569; }
+        .chat { height: 250px; background: #0f172a; overflow-y: auto; padding: 15px; margin: 20px 0; border-radius: 16px; border: 1px solid #334155; text-align: left; font-size: 0.95rem; }
+        .role-card { padding: 25px; border-radius: 16px; margin-bottom: 25px; font-weight: 700; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); }
+        .status-bar { background: rgba(0,0,0,0.2); padding: 10px 20px; border-radius: 100px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 20px; }
+        .game-item { background: #334155; padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; cursor: pointer; }
+        .vote-btn { background: #0f172a; border: 1px solid var(--accent); color: var(--accent); }
+        .vote-btn:hover { background: var(--accent); color: white; }
     </style>
 </head>
 <body>
@@ -151,15 +30,15 @@
 <div id="app" style="width: 100%; display: flex; justify-content: center;">
     <div id="screen-login" class="box">
         <h1>BLYKIO</h1>
-        <p>Skapa en profil för att börja spela</p>
+        <p>Skapa en profil för att spela</p>
         <label>ANVÄNDARNAMN</label>
-        <input type="text" id="username" placeholder="Skriv ditt namn...">
+        <input type="text" id="username" placeholder="Ditt namn...">
         <button onclick="login()">ANSLUT NU</button>
     </div>
 
     <div id="screen-menu" class="box hidden">
         <h1>BLYKIO</h1>
-        <p>Välkommen tillbaka, <span id="display-name" style="color:var(--accent); font-weight: bold;"></span></p>
+        <p>Välkommen, <span id="display-name" style="color:var(--accent); font-weight: bold;"></span></p>
         <button onclick="showScreen('screen-create')">SKAPA NYTT SPEL</button>
         <button class="secondary-btn" onclick="openFindMatch()">HITTA SPEL</button>
     </div>
@@ -173,29 +52,22 @@
             <option value="Famous People">Kändisar ⭐</option>
             <option value="Objects">Saker 📦</option>
         </select>
+        <label>ANTAL IMPOSTERS</label>
+        <select id="setting-imp">
+            <option value="1">1 Imposter</option>
+            <option value="2">2 Imposters</option>
+        </select>
         <label>MAX SPELARE</label>
-        <input type="number" id="setting-max" value="4" min="3">
-        
-        <div style="display: flex; align-items: center; gap: 10px; margin: 15px 0;">
-            <input type="checkbox" id="setting-private" style="width: 20px; margin: 0;">
-            <label style="margin: 0;">Privat match (Endast med kod)</label>
-        </div>
-
+        <input type="number" id="setting-max" value="4" min="2">
         <button onclick="createMatch()">SKAPA LOBBY</button>
         <button onclick="showScreen('screen-menu')" class="secondary-btn">AVBRYT</button>
     </div>
 
     <div id="screen-join" class="box hidden">
-        <h2>Hitta Match</h2>
-        <input type="text" id="join-code-input" placeholder="Ange 4-siffrig kod...">
-        <button onclick="joinByCode()">GÅ MED VIA KOD</button>
-        
-        <div style="margin: 25px 0; position: relative;">
-            <div style="position: absolute; width: 100%; border-top: 1px solid #334155; top: 50%;"></div>
-            <span style="position: relative; background: var(--box); padding: 0 15px; color: #64748b; font-size: 0.8rem;">ELLER PUBLIKA SPEL</span>
-        </div>
-
-        <div id="public-games-list">Söker efter spel...</div>
+        <h2>Ange Kod</h2>
+        <input type="text" id="join-code-input" placeholder="T.ex. ABCD">
+        <button onclick="joinByCode()">GÅ MED</button>
+        <div id="public-games-list" style="margin-top:20px;"></div>
         <button onclick="showScreen('screen-menu')" class="secondary-btn">TILLBAKA</button>
     </div>
 
@@ -206,31 +78,36 @@
         </div>
 
         <div id="game-lobby-area">
-            <h3 id="lobby-msg">Väntar på fler spelare...</h3>
-            <div id="lobby-list" style="text-align:left; margin-bottom:20px; color: #94a3b8;"></div>
+            <h3 id="lobby-msg">Väntar på spelare...</h3>
+            <div id="lobby-list" style="text-align:left; margin-bottom:20px;"></div>
             <button id="start-btn" class="hidden" onclick="requestStart()">STARTA MATCHEN</button>
         </div>
 
         <div id="game-play-area" class="hidden">
             <div id="role-box" class="role-card"></div>
-            <div class="timer" id="game-timer">20</div>
             <div class="chat" id="game-chat"></div>
-            
+            <p id="turn-indicator" style="font-weight:bold;"></p>
             <div id="turn-input-container">
-                <p id="turn-indicator" style="font-weight:600; font-size: 0.9rem;"></p>
-                <input type="text" id="word-input" placeholder="Skriv här...">
-                <button onclick="sendWord()">SKICKA ORD</button>
+                <input type="text" id="word-input" placeholder="Skriv din ledtråd...">
+                <button onclick="sendWord()">SKICKA</button>
             </div>
+            <div id="voting-area" class="hidden">
+                <h3>VEM ÄR IMPOSTER?</h3>
+                <div id="vote-list"></div>
+            </div>
+        </div>
+
+        <div id="result-area" class="hidden">
+            <h2 id="result-title"></h2>
+            <p id="result-desc"></p>
+            <button onclick="location.reload()">TILLBAKA TILL MENYN</button>
         </div>
     </div>
 </div>
 
 <script>
-    // Se till att IP matchar din VPS exakt!
     const socket = io('http://194.164.206.144:3000'); 
-
-    let myData = { name: '', roomId: '', role: '', isMyTurn: false };
-    let timer;
+    let myData = { name: '', roomId: '' };
 
     function showScreen(id) {
         document.querySelectorAll('.box').forEach(s => s.classList.add('hidden'));
@@ -239,19 +116,21 @@
 
     function login() {
         myData.name = document.getElementById('username').value.trim();
-        if(!myData.name) return alert("Ange ett namn!");
+        if(!myData.name) return alert("Ange namn!");
         document.getElementById('display-name').innerText = myData.name;
         showScreen('screen-menu');
     }
 
     function createMatch() {
-        const settings = {
-            category: document.getElementById('setting-cat').value,
-            maxPlayers: parseInt(document.getElementById('setting-max').value),
-            imposterCount: 1, 
-            isPublic: !document.getElementById('setting-private').checked
-        };
-        socket.emit('createMatch', { name: myData.name, settings });
+        socket.emit('createMatch', { 
+            name: myData.name, 
+            settings: { 
+                category: document.getElementById('setting-cat').value,
+                imposterCount: parseInt(document.getElementById('setting-imp').value),
+                maxPlayers: parseInt(document.getElementById('setting-max').value),
+                isPublic: true 
+            } 
+        });
     }
 
     function openFindMatch() {
@@ -261,64 +140,29 @@
 
     function joinByCode() {
         const code = document.getElementById('join-code-input').value.trim().toUpperCase();
-        if(!code) return alert("Ange en kod!");
         socket.emit('joinMatch', { name: myData.name, code });
     }
 
-    function joinPublic(code) {
-        socket.emit('joinMatch', { name: myData.name, code });
-    }
-
-    socket.on('publicGamesList', (games) => {
-        const list = document.getElementById('public-games-list');
-        if(games.length === 0) {
-            list.innerHTML = "<p style='font-size:0.8rem;'>Inga aktiva spel just nu...</p>";
-            return;
-        }
-        list.innerHTML = games.map(g => `
-            <div class="game-item" onclick="joinPublic('${g.id}')">
-                <div>
-                    <div style="font-weight:bold; color:white;">${g.host}'s lobby</div>
-                    <div style="font-size:0.7rem;">Kategori: ${g.category}</div>
-                </div>
-                <div style="color:var(--accent); font-weight:bold;">${g.players}/${g.max} 👤</div>
-            </div>
-        `).join('');
-    });
-
-    socket.on('matchCreated', (room) => setupLobby(room));
-    socket.on('matchJoined', (room) => setupLobby(room));
+    socket.on('matchCreated', room => setupLobby(room));
+    socket.on('matchJoined', room => setupLobby(room));
 
     function setupLobby(room) {
         myData.roomId = room.id;
         document.getElementById('match-id-display').innerText = room.id;
-        document.getElementById('player-count-display').innerText = `${room.players.length}/${room.maxPlayers}`;
         showScreen('screen-game');
         updatePlayerList(room.players, room.maxPlayers);
     }
 
-    socket.on('updatePlayers', (data) => {
-        updatePlayerList(data.players, data.maxPlayers);
-    });
+    socket.on('updatePlayers', data => updatePlayerList(data.players, data.maxPlayers));
 
     function updatePlayerList(players, max) {
-        const list = document.getElementById('lobby-list');
-        list.innerHTML = players.map(p => `
-            <div style="padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px; display:flex; justify-content:space-between;">
-                <span>${p.name} ${p.id === socket.id ? '(Du)' : ''}</span>
-                <span style="color:var(--inn)">● Ready</span>
-            </div>
-        `).join('');
-        
         document.getElementById('player-count-display').innerText = `${players.length}/${max}`;
+        const list = document.getElementById('lobby-list');
+        list.innerHTML = players.map(p => `<div style="padding:10px; background:rgba(255,255,255,0.05); margin-bottom:5px; border-radius:8px;">${p.name} ${p.id === socket.id ? '(Du)' : ''}</div>`).join('');
         
-        // Visa startknapp endast för Host (första personen i listan)
-        if (players[0] && socket.id === players[0].id && players.length >= 3) {
+        if (players[0] && socket.id === players[0].id) {
             document.getElementById('start-btn').classList.remove('hidden');
-            document.getElementById('lobby-msg').innerText = "Du är ledare - Starta spelet!";
-        } else if (players.length < 3) {
-            document.getElementById('start-btn').classList.add('hidden');
-            document.getElementById('lobby-msg').innerText = "Väntar på minst 3 spelare...";
+            document.getElementById('lobby-msg').innerText = "Du är ledare!";
         }
     }
 
@@ -326,80 +170,70 @@
         socket.emit('startGame', myData.roomId);
     }
 
-    socket.on('gameStarted', (data) => {
+    socket.on('gameStarted', data => {
         document.getElementById('game-lobby-area').classList.add('hidden');
         document.getElementById('game-play-area').classList.remove('hidden');
-        
         const isImp = data.imposters.includes(socket.id);
-        const roleBox = document.getElementById('role-box');
-        
+        const rb = document.getElementById('role-box');
         if(isImp) {
-            roleBox.innerHTML = `<span style="color:var(--imp); font-size:1.5rem;">DU ÄR IMPOSTER 😈</span><br><p>Försök smälta in och gissa ordet!</p>`;
-            roleBox.style.background = "rgba(239, 68, 68, 0.1)";
-            roleBox.style.border = "1px solid var(--imp)";
+            rb.innerHTML = `<span style="color:var(--imp)">DU ÄR IMPOSTER 😈</span><br>Smält in!`;
         } else {
-            roleBox.innerHTML = `<span style="color:var(--inn); font-size:1.5rem;">DU ÄR INNOCENT 😇</span><br><p>Det hemliga ordet är: <b style="color:white; font-size:1.2rem;">${data.word}</b></p>`;
-            roleBox.style.background = "rgba(34, 197, 94, 0.1)";
-            roleBox.style.border = "1px solid var(--inn)";
+            rb.innerHTML = `<span style="color:var(--inn)">DU ÄR INNOCENT 😇</span><br>Ordet: <b style="color:white">${data.word}</b>`;
         }
         updateTurnUI(data.turnPlayer);
     });
 
-    function updateTurnUI(activePlayerName) {
-        const indicator = document.getElementById('turn-indicator');
-        const inputContainer = document.getElementById('turn-input-container');
-        
-        if(activePlayerName === myData.name) {
-            indicator.innerText = "DIN TUR! Skriv en ledtråd...";
-            indicator.style.color = "var(--accent)";
-            inputContainer.classList.remove('hidden');
-            startTimer();
-        } else {
-            indicator.innerText = `Väntar på att ${activePlayerName} skriver...`;
-            indicator.style.color = "#64748b";
-            inputContainer.classList.add('hidden');
-            stopTimer();
-        }
-    }
-
-    function startTimer() {
-        let timeLeft = 20;
-        document.getElementById('game-timer').innerText = timeLeft;
-        clearInterval(timer);
-        timer = setInterval(() => {
-            timeLeft--;
-            document.getElementById('game-timer').innerText = timeLeft;
-            if(timeLeft <= 0) {
-                sendWord();
-            }
-        }, 1000);
-    }
-
-    function stopTimer() {
-        clearInterval(timer);
-        document.getElementById('game-timer').innerText = "20";
-    }
-
     function sendWord() {
-        const input = document.getElementById('word-input');
-        const word = input.value.trim() || "(passade turen)";
-        socket.emit('sendWord', { roomId: myData.roomId, name: myData.name, word: word });
-        input.value = "";
-        stopTimer();
+        const val = document.getElementById('word-input').value.trim();
+        if(!val) return;
+        socket.emit('sendWord', { roomId: myData.roomId, name: myData.name, word: val });
+        document.getElementById('word-input').value = "";
     }
 
-    socket.on('newWord', (data) => {
+    socket.on('newWord', data => {
         const chat = document.getElementById('game-chat');
         chat.innerHTML += `<p><b style="color:var(--accent)">${data.sender}:</b> ${data.word}</p>`;
         chat.scrollTop = chat.scrollHeight;
-
-        if(!data.isVoteTime) {
-            updateTurnUI(data.nextTurn);
-        }
+        updateTurnUI(data.nextTurn);
     });
 
-    socket.on('error', (msg) => alert(msg));
-</script>
+    function updateTurnUI(activePlayer) {
+        const ti = document.getElementById('turn-indicator');
+        const ic = document.getElementById('turn-input-container');
+        if(activePlayer === myData.name) {
+            ti.innerText = "DIN TUR!";
+            ic.classList.remove('hidden');
+        } else {
+            ti.innerText = `Väntar på ${activePlayer}...`;
+            ic.classList.add('hidden');
+        }
+    }
 
+    socket.on('startVoting', data => {
+        document.getElementById('turn-input-container').classList.add('hidden');
+        document.getElementById('turn-indicator').innerText = "DAGS ATT RÖSTA!";
+        const vl = document.getElementById('vote-list');
+        document.getElementById('voting-area').classList.remove('hidden');
+        vl.innerHTML = data.players.filter(p => p.id !== socket.id).map(p => 
+            `<button class="vote-btn" onclick="castVote('${p.id}')">${p.name}</button>`
+        ).join('');
+    });
+
+    function castVote(id) {
+        socket.emit('castVote', { roomId: myData.roomId, targetId: id });
+        document.getElementById('voting-area').innerHTML = "<p>Röst lagd...</p>";
+    }
+
+    socket.on('gameResult', data => {
+        document.getElementById('game-play-area').classList.add('hidden');
+        const resArea = document.getElementById('result-area');
+        resArea.classList.remove('hidden');
+        document.getElementById('result-title').innerText = data.isCorrect ? "INNOCENTS VANN! 🎉" : "IMPOSTER VANN! 😈";
+        document.getElementById('result-desc').innerHTML = `Ni röstade ut: <b>${data.votedOutName}</b><br>Imposter(s) var: <b>${data.imposters.join(', ')}</b><br>Ordet var: <b>${data.word}</b>`;
+    });
+
+    socket.on('leaderLeft', () => { alert("Ledaren lämnade. Lobbyn stängs."); location.reload(); });
+    socket.on('error', m => alert(m));
+</script>
 </body>
 </html>
