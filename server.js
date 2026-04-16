@@ -7,6 +7,23 @@ app.use(express.static(__dirname));
 
 let rooms = {};
 
+const wordPools = {
+    'sv': {
+        'Djur 🦁': ['Lejon', 'Giraff', 'Haj', 'Panda', 'Krokodil', 'Pingvin', 'Tiger', 'Elefant', 'Uggla', 'Varg', 'Häst', 'Katt', 'Hund', 'Apa', 'Älg', 'Björn', 'Räv', 'Säl', 'Gepard', 'Flodhäst', 'Zebra', 'Orm', 'Örn', 'Sköldpadda', 'Hamster'],
+        'Mat 🍕': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Kebab', 'Hamburgare', 'Sallad', 'Soppa', 'Pannkakor', 'Stek', 'Lasagne', 'Smörgås', 'Gröt', 'Wok', 'Paella', 'Risotto', 'Glass', 'Tårta', 'Bulle', 'Paj', 'Falafel', 'Nudlar', 'Omelett', 'Curry', 'Dumplings'],
+        'Kändisar ⭐': ['Zlatan', 'Elon Musk', 'Beyonce', 'Messi', 'Trump', 'Ronaldo', 'Zara Larsson', 'Avicii', 'Rihanna', 'Drake', 'Bill Gates', 'Taylor Swift', 'Brad Pitt', 'Kim Kardashian', 'LeBron James', 'Ariana Grande', 'Eminem', 'Will Smith', 'Tom Cruise', 'Lady Gaga', 'PewDiePie', 'Greta Thunberg', 'Mark Zuckerberg', 'Oprah', 'Justin Bieber'],
+        'Platser 🌍': ['Paris', 'London', 'New York', 'Tokyo', 'Stockholm', 'Rom', 'Berlin', 'Dubai', 'Sydney', 'Kina', 'Egypten', 'Island', 'Spanien', 'Brasilien', 'Indien', 'Skogen', 'Stranden', 'Öknen', 'Gymmet', 'Skolan', 'Sjukhuset', 'Flygplatsen', 'Månen', 'Mars', 'Hollywood'],
+        'Föremål 📦': ['Klocka', 'Telefon', 'Kamera', 'Dator', 'Hammare', 'Paraply', 'Nycklar', 'Plånbok', 'Spegel', 'Tandborste', 'Lampa', 'Stol', 'Bok', 'Cykel', 'Gitarr', 'Kudde', 'Glasögon', 'Skor', 'Väska', 'Tidning', 'Fjärrkontroll', 'Kniv', 'Kompass', 'Tändstickor', 'Batteri']
+    },
+    'en': {
+        'Animals 🦁': ['Lion', 'Giraffe', 'Shark', 'Panda', 'Crocodile', 'Penguin', 'Tiger', 'Elephant', 'Owl', 'Wolf', 'Horse', 'Cat', 'Dog', 'Monkey', 'Moose', 'Bear', 'Fox', 'Seal', 'Cheetah', 'Hippo', 'Zebra', 'Snake', 'Eagle', 'Turtle', 'Hamster'],
+        'Food 🍕': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Kebab', 'Burger', 'Salad', 'Soup', 'Pancakes', 'Steak', 'Lasagna', 'Sandwich', 'Porridge', 'Wok', 'Paella', 'Risotto', 'Ice Cream', 'Cake', 'Bun', 'Pie', 'Falafel', 'Noodles', 'Omelette', 'Curry', 'Dumplings'],
+        'Famous People ⭐': ['Zlatan', 'Elon Musk', 'Beyonce', 'Messi', 'Trump', 'Ronaldo', 'Zara Larsson', 'Avicii', 'Rihanna', 'Drake', 'Bill Gates', 'Taylor Swift', 'Brad Pitt', 'Kim Kardashian', 'LeBron James', 'Ariana Grande', 'Eminem', 'Will Smith', 'Tom Cruise', 'Lady Gaga', 'PewDiePie', 'Greta Thunberg', 'Mark Zuckerberg', 'Oprah', 'Justin Bieber'],
+        'Places 🌍': ['Paris', 'London', 'New York', 'Tokyo', 'Stockholm', 'Rome', 'Berlin', 'Dubai', 'Sydney', 'China', 'Egypt', 'Iceland', 'Spain', 'Brazil', 'India', 'The Forest', 'The Beach', 'Desert', 'Gym', 'School', 'Hospital', 'Airport', 'The Moon', 'Mars', 'Hollywood'],
+        'Objects 📦': ['Watch', 'Phone', 'Camera', 'Computer', 'Hammer', 'Umbrella', 'Keys', 'Wallet', 'Mirror', 'Toothbrush', 'Lamp', 'Chair', 'Book', 'Bicycle', 'Guitar', 'Pillow', 'Glasses', 'Shoes', 'Bag', 'Magazine', 'Remote', 'Knife', 'Compass', 'Matches', 'Battery']
+    }
+};
+
 io.on('connection', (socket) => {
     socket.on('createMatch', (data) => {
         const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -28,11 +45,10 @@ io.on('connection', (socket) => {
 
     socket.on('getPublicGames', () => {
         const list = Object.values(rooms)
-            .filter(r => r.status === 'lobby')
+            .filter(r => r.status === 'lobby' && r.settings.isPublic)
             .map(r => ({
                 id: r.id, host: r.hostName, players: r.players.length,
-                max: r.settings.maxPlayers, category: r.settings.category,
-                turns: r.settings.turnsPerPlayer
+                max: r.settings.maxPlayers, category: r.settings.category
             }));
         socket.emit('publicGamesList', list);
     });
@@ -40,6 +56,8 @@ io.on('connection', (socket) => {
     socket.on('joinMatch', (data) => {
         const room = rooms[data.code];
         if (!room) return socket.emit('error', 'Hittades inte!');
+        if (room.players.length >= room.settings.maxPlayers) return socket.emit('error', 'Fullt!');
+        
         room.players.push({ id: socket.id, name: data.name });
         socket.join(data.code);
         socket.emit('matchJoined', room);
@@ -50,17 +68,13 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        const wordPool = {
-            'Animals': ['Lejon', 'Giraff', 'Haj', 'Panda', 'Krokodil', 'Pingvin', 'Tiger'],
-            'Food': ['Pizza', 'Sushi', 'Taco', 'Pasta', 'Kebab', 'Hamburgare'],
-            'Famous People': ['Zlatan', 'Elon Musk', 'Beyonce', 'Messi', 'Trump', 'Ronaldo']
-        };
-        
-        const cat = room.settings.category || 'Animals';
-        room.word = wordPool[cat][Math.floor(Math.random() * wordPool[cat].length)];
+        const lang = room.settings.language || 'sv';
+        const cat = room.settings.category;
+        const pool = wordPools[lang][cat] || wordPools['sv']['Djur 🦁'];
+        room.word = pool[Math.floor(Math.random() * pool.length)];
         
         let shuffled = [...room.players].sort(() => 0.5 - Math.random());
-        room.imposters = shuffled.slice(0, room.settings.imposterCount || 1).map(p => p.id);
+        room.imposters = shuffled.slice(0, parseInt(room.settings.imposterCount)).map(p => p.id);
         
         room.status = 'playing';
         room.totalMessagesSent = 0;
@@ -79,10 +93,9 @@ io.on('connection', (socket) => {
         if (!room || room.status !== 'playing') return;
 
         room.totalMessagesSent++;
-        const maxMessages = room.players.length * room.settings.turnsPerPlayer;
         const nextIndex = room.totalMessagesSent % room.players.length;
 
-        if (room.totalMessagesSent >= maxMessages) {
+        if (room.totalMessagesSent >= (room.players.length * room.settings.turnsPerPlayer)) {
             io.to(data.roomId).emit('newWord', { sender: data.name, word: data.word });
             io.to(data.roomId).emit('startVoting', { players: room.players });
         } else {
