@@ -56,11 +56,11 @@ io.on('connection', (socket) => {
             'Famous People': ['Zlatan', 'Elon Musk', 'Beyonce', 'Messi', 'Trump', 'Ronaldo']
         };
         
-        const cat = room.settings.category;
+        const cat = room.settings.category || 'Animals';
         room.word = wordPool[cat][Math.floor(Math.random() * wordPool[cat].length)];
         
         let shuffled = [...room.players].sort(() => 0.5 - Math.random());
-        room.imposters = shuffled.slice(0, room.settings.imposterCount).map(p => p.id);
+        room.imposters = shuffled.slice(0, room.settings.imposterCount || 1).map(p => p.id);
         
         room.status = 'playing';
         room.totalMessagesSent = 0;
