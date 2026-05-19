@@ -43,34 +43,34 @@ def super_intensiv_analys():
         r_lower = rad.lower()
 
         # =================================================================
-        # DJUPANALYS: JORIS34 (KOLLA HANS /SELL OCH EKONOMI)
+        # DJUPANALYS: JORIS34 (KOLLA VAD HAN SÅLDE & HANS EKONOMI)
         # =================================================================
         if "joris34" in r_lower:
             # 1. Kolla om han startade en försäljning
             if "sell" in r_lower:
                 joris_har_saljt = True
-                block_namn = "okänt föremål"
+                detaljerad_forsaljning = "okänt föremål"
                 summa = 0
                 
-                # Sök framåt efter föremål och pengar (scannar raderna efter Essentials /worth)
-                for j in range(1, 5):
+                # Sök framåt upp till 5 rader för att hitta vad Essentials skrev ut
+                for j in range(1, 6):
                     if i + j < len(rader):
-                        nasta_rad = rader[i + j].lower()
+                        nasta_rad = rader[i + j]
+                        nasta_rad_lower = nasta_rad.lower()
                         
-                        if "worth" in nasta_rad or "säljer" in nasta_rad or "sold" in nasta_rad or "stack of" in nasta_rad:
-                            item_match = re.search(r"(stack of|worth)\s+([a-zA-Z_0-9]+)", nasta_rad)
-                            if item_match:
-                                block_namn = item_match.group(2)
-                            elif "worth" in nasta_rad:
-                                # Reserv om regex missar specifikt ord
-                                block_namn = "Essentials Item"
+                        # NYTT: Fångar hela texten runt 'worth' (t.ex. "Stack of chainmailboots worth $150")
+                        if "worth" in nasta_rad_lower:
+                            # Rensar bort tidstämplar [00:00:00 INFO] i början av raden så bara texten blir kvar
+                            ren_text = re.sub(r"^\[.*?\]:\s*", "", nasta_rad.strip())
+                            detaljerad_forsaljning = ren_text
 
-                        if "eco give" in nasta_rad or "money give" in nasta_rad or "eco:give" in nasta_rad:
-                            pengar_match = re.search(r"\d+(\.\d+)?", nasta_rad)
+                        # Fånga upp pengarna som gavs direkt efteråt
+                        if "eco give" in nasta_rad_lower or "money give" in nasta_rad_lower or "eco:give" in nasta_rad_lower:
+                            pengar_match = re.search(r"\d+(\.\d+)?", nasta_rad_lower)
                             if pengar_match:
                                 summa = float(pengar_match.group())
                                 total_lagliga_pengar += summa
-                                joris_transaktioner.append(f"LAGLIGT: Sålde {block_namn} och fick ${summa:.2f} via /sell")
+                                joris_transaktioner.append(f"LAGLIGT: Sålde [{detaljerad_forsaljning}] och fick ${summa:.2f}")
                                 break
 
             # 2. Kolla om han fick pengar UTAN att ha kört /sell
@@ -85,8 +85,8 @@ def super_intensiv_analys():
                     if pengar_match:
                         s = float(pengar_match.group())
                         
-                        # Ignorera småsummor som $4.00 om de ser ut att komma från legitima automatiserade plugin-system
-                        if s == 4.0 and ("console" in r_lower or "essentials" in r_lower):
+                        # System-löner/utbetalningar på exakt $4.00 flaggas som system-lagligt
+                        if s == 4.0 and ("console" in r_lower or "essentials" in r_lower or "cron" in r_lower):
                             total_lagliga_pengar += s
                             joris_transaktioner.append(f"LAGLIGT (System): Automatisk utbetalning/belöning på $4.00")
                         else:
@@ -140,8 +140,8 @@ def super_intensiv_analys():
         print(f"  ⚠️ STATUS: Okänd hantering (Totalt: {total_lagliga_pengar + total_olagliga_pengar:.2f} kr)")
 
     if joris_transaktioner:
-        print("  Ekonomiska händelser (Max 5 visas):")
-        for t in joris_transaktioner[:5]:
+        print("\n  Ekonomiska händelser (Här ser du exakt VAD han sålde):")
+        for t in joris_transaktioner[:15]: # Ökat till max 15 rader så du ser ordentligt
             print(f"    -> {t}")
 
     print("-" * 75)
