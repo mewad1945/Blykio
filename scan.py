@@ -34,10 +34,10 @@ def skanna_server_logg():
                 if "op " in rad.lower() or "permission" in rad.lower():
                     rip_shy_activity.append(f"[BEHÖRIGHET] {rad.strip()}")
 
-            # 2. KOLLA JORIS34 OCH PENGAR (2 miljoner / miljoner / ekonomi-kommandon)
+            # 2. KOLLA JORIS34, PENGAR OCH SÄLJ-KOMMANDON
             if "Joris34" in rad or "joris34" in rad.lower():
-                # Söker efter siffror, "eco", "give", "balance", "money", "pay" eller "vault"
-                if any(x in rad.lower() for x in ["eco", "give", "money", "pay", "balance", "add", "set", "2000000"]):
+                # NYTT: Söker efter pengar, eco-kommandon, men NU ÄVEN /sell och /shop!
+                if any(x in rad.lower() for x in ["eco", "give", "money", "pay", "balance", "add", "set", "2000000", "sell", "shop"]):
                     joris_money_activity.append(rad.strip())
 
     # --- PRESENTERA RESULTATET ---
@@ -51,13 +51,13 @@ def skanna_server_logg():
 
     print("\n" + "="*60)
 
-    print(f"\n[+] RAPPORT FÖR Joris34 & PENGAR ({len(joris_money_activity)} ekonomihändelser hittade):")
+    print(f"\n[+] RAPPORT FÖR Joris34 (Pengar, /sell & /shop - {len(joris_money_activity)} händelser hittade):")
     if joris_money_activity:
         for händelse in joris_money_activity:
             print(f"  -> {händelse}")
     else:
-        print("  Hittade inga direkta penga-kommandon kopplade till Joris34 i loggen.")
-        print("  TIPS: Om pengarna gavs via Essentials/Vault kan det stå under konsolens kommandon 'eco give' utan hans namn på samma rad.")
+        print("  Hittade inga penga- eller säljkommandon kopplade till Joris34 i loggen.")
+        print("  TIPS: Om pengarna kom från en buggig admin-shop kan det hända att EssentialsX/ShopGUI+ loggar det i en egen separat loggfil i plugin-mappen.")
 
     print("\n" + "=" * 60)
 
