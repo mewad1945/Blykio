@@ -1,22 +1,14 @@
-command /resetall:
+command /forcefreeall:
     permission: op
     trigger:
-        if size of {arena::list::*} is 0:
-            send "{@prefix} &cDet finns inga arenor registrerade att återställa!" to player
-            stop
-            
-        send "{@prefix} &eÅterställer och frigör alla arenor... Vänta lite." to player
-        
+        # Rensa arenastatus
         loop {arena::list::*}:
-            set {_arenaID} to loop-value
-            
-            # 1. Frigör arenan så att kön kan använda den direkt
-            set {arena::%{_arenaID}%::occupied} to false
-            
-            # 2. Kör din inbyggda hårdvaru-återställning (block + entities)
-            resetArena({_arenaID})
-            
-        # 3. Rensa temporär data över placerade block i matcherna
-        delete {placed::*}
+            set {arena::%loop-value%::occupied} to false
         
-        broadcast "{@prefix} &a&lALLA ARENOR HAR ÅTERSTÄLLTS! &7Samtliga arenor är nu lediga och rensade."
+        # Rensa alla köer
+        delete {queue::*}
+        loop all players:
+            delete {queuing::%loop-player%}
+            delete {queuekit::%loop-player%}
+            
+        send "{@prefix} &c&lALLA arenor är nu tvingade till 'FREE' och alla köer är rensade!" to player
