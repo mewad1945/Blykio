@@ -1,87 +1,143 @@
 import os
+import re
 
 LOG_FILE_PATH = "latest.log"
 
-def intensiv_skanning():
+def super_intensiv_analys():
     if not os.path.exists(LOG_FILE_PATH):
-        print("Hittade inte latest.log! Lägg skriptet i rätt mapp.")
+        print("Hittade inte latest.log! Se till att skriptet ligger i serverns logg-mapp.")
         return
 
     with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="ignore") as f:
         rader = f.readlines()
 
-    # Variabler för att samla stenhårda bevis
-    joris_sell_count = 0
-    joris_received_from_rip = False
-    joris_illegal_eco = False
-    
-    rip_gmc = False
-    rip_fly = False
-    rip_script_injection = False
+    # --- VARIABLER FÖR JORIS34 ---
+    joris_transaktioner = []
+    total_lagliga_pengar = 0
+    total_olagliga_pengar = 0
+    joris_har_saljt = False
 
-    # Loopa igenom HELA loggen rad för rad
+    # --- VARIABLER FÖR RIP_SHY (FUSK & INJEKTIONER) ---
+    rip_bevis = {
+        "creative_mode": [],
+        "fly_hacks": [],
+        "command_abuse": [],
+        "script_injection": [],
+        "vanilla_anti_cheat": [] # Fångar upp serverns egna dolda varningar om rörelse
+    }
+
+    # Sökord för kända injektioner eller försök att lura Skript/LuckPerms
+    injection_keywords = ["\"", "'", "&&", "||", "eval", "parent set", "permission set", "meta clear", "execute as"]
+
+    # Loopa igenom loggen rad för rad med index för tidslinjeanalys
     for i, rad in enumerate(rader):
         r_lower = rad.lower()
 
-        # --- JORIS34 DJUPANALYS ---
+        # =================================================================
+        # DJUPANALYS: JORIS34 (KOLLA OM DET VAR EN RIGGAD ELLER LAGLIG /SELL)
+        # =================================================================
         if "joris34" in r_lower:
+            # 1. Kolla om han startade en försäljning
             if "sell" in r_lower:
-                joris_sell_count += 1
-            if "pay" in r_lower and "rip_shy" in r_lower:
-                joris_received_from_rip = True
-            if "eco give" in r_lower or "money give" in r_lower:
-                # Kolla om det fanns en /sell-handling precis innan
-                gick_via_sell = False
-                for j in range(max(0, i-3), i):
-                    if "sell" in rader[j].lower():
-                        gick_via_sell = True
-                if not gick_via_sell:
-                    joris_illegal_eco = True
+                joris_har_saljt = True
+                
+                # Sök framåt efter föremål och pengar (precis som på din bild)
+                block_namn = "okänt föremål"
+                summa = 0
+                
+                for j in range(1, 5):
+                    if i + j < len(rader):
+                        nasta_rad = rader[i + j].lower()
+                        
+                        # Försök fånga upp blocket/itemet (letar efter vanliga föremål eller 'worth')
+                        if "worth" in nasta_rad or "säljer" in nasta_rad or "sold" in nasta_rad:
+                            # Enkel regex för att hitta ord som liknar föremålsnamn
+                            item_match = re.search(r"([a-zA-Z_]+)(beef|meat|dirt|stone|diamond|iron|gold|block|item)", nasta_rad)
+                            if item_match:
+                                block_namn = item_match.group()
 
-        # --- RIP_SHY DJUPANALYS ---
+                        # Fånga upp konsolens eco give direkt efteråt
+                        if "eco give" in nasta_rad or "money give" in nasta_rad:
+                            pengar_match = re.search(r"\d+(\.\d+)?", nasta_rad)
+                            if pengar_match:
+                                summa = float(pengar_match.group())
+                                total_lagliga_pengar += summa
+                                joris_transaktioner.append(f"LAGLIGT: Sålde {block_namn} och fick ${summa:.2f} via /sell")
+                                break
+
+            # 2. Kolla om han fick pengar UTAN att ha kört /sell (Direkt fusk/insättning)
+            if ("eco give" in r_lower or "money give" in r_lower or "pay" in r_lower) and "joris34" in r_lower:
+                # Kontrollera om han körde /sell precis innan, annars är det olagligt
+                körde_sell_innan = False
+                for k in range(max(0, i-3), i):
+                    if "sell" in rader[k].lower() and "joris34" in rader[k].lower():
+                        körde_sell_innan = True
+                
+                if not körde_sell_innan:
+                    pengar_match = re.search(r"\d+(\.\d+)?", r_lower)
+                    if pengar_match:
+                        s = float(pengar_match.group())
+                        total_olagliga_pengar += s
+                        joris_transaktioner.append(f"OLAGLIGT: Fick ${s:.2f} direkt via kommando/insättning (Ingen /sell hittad!)")
+
+        # =================================================================
+        # DJUPANALYS: RIP_SHY (FUSKKLIENT, KOMMANDON, INJEKTIONER)
+        # =================================================================
         if "rip_shy" in r_lower:
+            # Hitta tidstämpel
+            tid_match = re.match(r"^\[(\d{2}:\d{2}:\d{2})\]", rad)
+            tid = tid_match.group(1) if tid_match else "00:00:00"
+            ren_rad = re.sub(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\]:\s*", "", rad.strip())
+
+            # 1. Creative Mode koll
             if any(x in r_lower for x in ["gamemode c", "gamemode creative", "gm c", "gmc"]):
-                rip_gmc = True
-            if "fly" in r_lower:
-                rip_fly = True
-            # Letar efter tecken på Script Injection (konstiga kommandoförsök)
+                rip_bevis["creative_mode"].append(f"[{tid}] Enheten gick i Creative: {ren_rad}")
+
+            # 2. Flyg/Rörelse koll
+            if "fly" in r_lower and ("enabled" in r_lower or "true" in r_lower or "issued server command" in r_lower):
+                rip_bevis["fly_hacks"].append(f"[{tid}] Slog på flygläge: {ren_rad}")
+
+            # 3. Vanilla Anti-Cheat träffar (Om servern spammar att han rör sig för snabbt = Hacked Client)
+            if "moved too quickly" in r_lower or "moved wrongly" in r_lower:
+                rip_bevis["vanilla_anti_cheat"].append(f"[{tid}] Servern upptäckte fuskförflyttning (Speed/Fly hack): {ren_rad}")
+
+            # 4. Sök efter Command Abuse (Försök att köra admin-kommandon)
             if "issued server command" in r_lower:
-                if any(x in r_lower for x in ["\"", "'", "&&", "eval", "skript", "parent set"]):
-                    rip_script_injection = True
+                if any(x in r_lower for x in ["/op", "/deop", "/plugins", "/pl", "/stop", "/sk", "/luckperms", "/lp"]):
+                    rip_bevis["command_abuse"].append(f"[{tid}] Försökte använda kritiskt admin-kommando: {ren_rad}")
 
-    print("\n" + "=" * 60)
-    print("      INTENSIV ANALYS KLART – HÄR ÄR SVARET:")
-    print("=" * 60)
+                # 5. Sök efter Command/Script Injection (Otillåtna tecken i chatten eller kommandon)
+                if any(x in r_lower for x in injection_keywords):
+                    rip_bevis["script_injection"].append(f"[{tid}] MISSTÄNKT SCRIPT INJECTION (Försök att lura koden): {ren_rad}")
 
-    # SLUTSATS: JORIS34
-    if joris_received_from_rip:
-        print("[JORIS34]: OLAGLIGT. Han tog emot pengarna direkt från fuskaren Rip_Shy via /pay.")
-    elif joris_illegal_eco:
-        print("[JORIS34]: OLAGLIGT. Någon (eller ett hack) körde /eco give på honom utan att han sålde något.")
-    elif joris_sell_count > 0:
-        print(f"[JORIS34]: LAGLIGT MEN BUGGAT. Han använde din /sell {joris_sell_count} gånger. Priserna i ditt sälj-GUI är felinställda!")
+    # =================================================================
+    # PRESENTERA DET INTENSIVA RESULTATET PÅ SKÄRMEN
+    # =================================================================
+    print("\n" + "=" * 70)
+    print("      🔍 INTENSIV UTREDNINGS-RAPPORT FÖR SERVERN 🔍      ")
+    print("=" * 70)
+
+    # Slutsats Joris34
+    print("\n[📊 JORIS34 EKONOMI-DOM]:")
+    if total_olagliga_pengar > 0:
+        print(f"  🔴 STATUS: OLAGLIGT! Han har tagit emot ${total_olagliga_pengar:.2f} direkt via dolda kommandon eller fusk.")
+    elif total_lagliga_pengar >= 2000000:
+        print(f"  🟢 STATUS: LAGLIGT MEN BUGGAT! Han tjänade ${total_lagliga_pengar:.2f} via din vanliga /sell-funktion.")
+        print("            Det är inget hack, men priserna eller multiplikations-matten i ditt Skript är helt trasig.")
+    elif len(joris_transaktioner) == 0:
+        print("  ⚪ STATUS: Inga spår av pengatransaktioner eller miljoner hittades för Joris34 i denna fil.")
     else:
-        print("[JORIS34]: INGA SPÅR. Hittade inga miljonaffärer alls kopplade till honom i denna fil.")
+        print(f"  ⚠️ STATUS: Han har rört pengar, men inte nått upp till miljoner i denna logg. (Totalt: ${total_lagliga_pengar + total_olagliga_pengar:.2f})")
 
-    # SLUTSATS: RIP_SHY
-    if rip_gmc and rip_fly:
-        print("[RIP_SHY]: FUSKADE. Tog sig in i Creative Mode OCH slog på Fly.")
-    elif rip_gmc:
-        print("[RIP_SHY]: FUSKADE. Gick in i Creative Mode (/gamemode c).")
-    elif rip_fly:
-        print("[RIP_SHY]: FUSKADE. Slog på flyg-läge.")
-    else:
-        print("[RIP_SHY]: Inga spår av Creative/Fly.")
+    # Visa detaljer för Joris om han gjort något
+    if joris_transaktioner:
+        print("  Detaljerade händelser:")
+        for t in joris_transaktioner[:5]: # Visar de första 5 händelserna
+            print(f"    -> {t}")
+        if len(joris_transaktioner) > 5:
+            print(f"    ... och {len(joris_transaktioner) - 5} till liknande rader.")
 
-    # SLUTSATS: SCRIPT INJECTION / HACK METOD
-    if rip_script_injection:
-        print("[METOD]: SCRIPT INJECTION. Rip_Shy försökte lura dina Skript att köra konsolkommandon!")
-    elif joris_illegal_eco or rip_gmc:
-        print("[METOD]: OP-LÄCKA. De har troligen lyckats få OP-rättigheter eller stulit stjärn-permission (*).")
-    else:
-        print("[METOD]: Inga tecken på systemhack. Det rör sig troligen om felinställda priser i ditt sälj-GUI.")
+    print("-" * 70)
 
-    print("=" * 60 + "\n")
-
-if __name__ == "__main__":
-    intensiv_skanning()
+    # Slutsats Rip_Shy
+    print("\n
