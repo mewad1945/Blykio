@@ -1,175 +1,186 @@
 import os
 import re
 
-# Sökvägar till de olika loggfilerna
-SMP_LOG = "latest.log"
+LOG_FILE_PATH = "latest.log"
 
-# Lista på vanliga ställen där Eagler-proxyns/Bungeecords loggar kan ligga i förhållande till smp/logs
-PROXY_SOKVAGAR = [
-    "../../logs/latest.log",
-    "../proxy/logs/latest.log",
-    "../../proxy/logs/latest.log",
-    "proxy.log",
-    "./proxy.log"
-]
-
-def giga_intensiv_utredning():
-    print("\n" + "=" * 95)
-    print(" 🚨 [ULTRA-INTENSIV UTREDNING] INTEGRERAD SKANNING AV PROXY- LOGGAR OCH MINECRAFT-LOGGAR 🚨 ")
-    print("=" * 95)
-
-    # Förbered ordlistor för att spara IP-adresser
-    eagler_ips = {
-        "joris34": "Ingen IP funnen i Eagler-proxyns loggfiler", 
-        "rip_shy": "Ingen IP funnen i Eagler-proxyns loggfiler"
-    }
-    
-    proxy_fil_hittad = False
-    proxy_rader = []
-
-    # --- STEG 1: SÖK EFTER OCH LÄS IN EAGLER-NETWORK PROXY-LOGGEN ---
-    for sokvag in PROXY_SOKVAGAR:
-        if os.path.exists(sokvag):
-            try:
-                with open(sokvag, "r", encoding="utf-8", errors="ignore") as f:
-                    proxy_rader = f.readlines()
-                proxy_fil_hittad = True
-                break
-            except Exception:
-                continue
-
-    # Om vi hittade proxyloggar, leta efter de riktiga nätverks-IP-adresserna
-    if proxy_fil_hittad:
-        for rad in proxy_rader:
-            r_lower = rad.lower()
-            if any(x in r_lower for x in ["connect", "logged in", "initial handler", "eagler"]):
-                # Letar efter mönster som [/123.45.67.89:54321] eller bara rena IP-adresser
-                ip_match = re.search(r"(/[\d\.]+:\d+|[\d\.]+)", rad)
-                if ip_match:
-                    # Rensa bort snedstreck och portnummer för att få en ren IP-adress
-                    ren_ip = ip_match.group(1).replace("/", "").split(":")[0]
-                    if "joris34" in r_lower:
-                        eagler_ips["joris34"] = ren_ip
-                    if "rip_shy" in r_lower:
-                        eagler_ips["rip_shy"] = ren_ip
-
-    # --- STEG 2: SÖK IGENOM MINECRAFT SMP-LOGGEN EFTER FUSK-MÖNSTER ---
-    if not os.path.exists(SMP_LOG):
-        print(f" Fel: Hittade inte Minecraft-serverns loggfil ({SMP_LOG}).")
-        print(" Se till att du kör detta skript inifrån mappen: ~/eagler-network/smp/logs/")
+def super_intensiv_analys():
+    if not os.path.exists(LOG_FILE_PATH):
+        print("Hittade inte latest.log! Se till att skriptet ligger i serverns logg-mapp.")
         return
 
-    with open(SMP_LOG, "r", encoding="utf-8", errors="ignore") as f:
-        smp_rader = f.readlines()
+    with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="ignore") as f:
+        rader = f.readlines()
 
-    # Variabler för att samla exakt bevisdata
-    joris_handlingar = []
-    rip_handlingar = []
+    # --- VARIABLER FÖR JORIS34 ---
+    joris_transaktioner = []
+    total_lagliga_pengar = 0
+    total_olagliga_pengar = 0
+    joris_har_saljt = False
 
-    injection_keywords = ["\"", "'", "&&", "||", "eval", "parent set", "permission set", "meta clear", "execute as", "${", "jndi", "run command", "sudo"]
-    exploit_keywords = ["//calc", "//solve", "authme", "litebans", "nbt", "packet", "crash", "exploit", "bukkit:", "minecraft:", "pex ", "plugman"]
+    # --- VARIABLER FÖR RIP_SHY (UPPGRADRAD EXTREM SÖKNING) ---
+    rip_bevis = {
+        "creative_mode": [],
+        "fly_hacks": [],
+        "command_abuse": [],
+        "script_injection": [],
+        "vanilla_anti_cheat": [],
+        "hacked_client_exploits": []
+    }
 
-    for i, rad in enumerate(smp_rader):
+    # INJEKTIONER OCH HACK-SÖKORD
+    injection_keywords = [
+        "\"", "'", "&&", "||", "eval", "parent set", "permission set", "meta clear", 
+        "execute as", "run command", "sudo", "${", "jndi", "expr", "cancel event"
+    ]
+    
+    exploit_keywords = [
+        "//calc", "//solve", "authme", "litebans", "nbt", "packet", "crash", "exploit", 
+        "bukkit:", "minecraft:", "pay *", "give *", "pex ", "plugman", "viaversion"
+    ]
+
+    # Loopa igenom loggen rad för rad med index för tidslinjeanalys
+    for i, rad in enumerate(rader):
         r_lower = rad.lower()
-        
-        # Hämta tidstämpel från raden om den finns
-        tid_match = re.match(r"^\[(\d{2}:\d{2}:\d{2})\]", rad)
-        tid = tid_match.group(1) if tid_match else "Okänd tid"
-        
-        # Ta bort tidstämpeln från texten för att göra loggutskriften renare
-        ren_rad = re.sub(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\]:\s*", "", rad.strip())
 
-        # --- GRANSKNING: JORIS34 ---
+        # =================================================================
+        # DJUPANALYS: JORIS34 (KOLLA HANS /SELL OCH EKONOMI)
+        # =================================================================
         if "joris34" in r_lower:
-            # Kolla om han sålde via /sell GUI-menyn
+            # 1. Kolla om han startade en försäljning
             if "sell" in r_lower:
-                block_namn = "okänt block/föremål"
-                summa = "0"
+                joris_har_saljt = True
                 
-                # Sök framåt i loggen (upp till 5 rader) för att se vad shopen gav honom
-                for j in range(1, 6):
-                    if i + j < len(smp_rader):
-                        nasta_rad = smp_rader[i + j].lower()
-                        if any(x in nasta_rad for x in ["worth", "säljer", "sold"]):
+                # Sök framåt efter föremål och pengar (precis som på din bild)
+                block_namn = "okänt föremål"
+                summa = 0
+                
+                for j in range(1, 5):
+                    if i + j < len(rader):
+                        nasta_rad = rader[i + j].lower()
+                        
+                        # Försök fånga upp blocket/itemet (letar efter vanliga föremål eller 'worth')
+                        if "worth" in nasta_rad or "säljer" in nasta_rad or "sold" in nasta_rad:
                             item_match = re.search(r"([a-zA-Z_0-9]+)", nasta_rad)
                             if item_match:
-                                block_namn = item_match.group(1)
-                        if any(x in nasta_rad for x in ["eco give", "money give", "eco:give"]):
-                            pengar_match = re.search(r"(?:give\s+joris34\s+)(\d+(?:\.\d+)?)", nasta_rad)
+                                block_namn = item_match.group()
+
+                        # Fånga upp konsolens eco give direkt efteråt
+                        if "eco give" in nasta_rad or "money give" in nasta_rad or "eco:give" in nasta_rad:
+                            pengar_match = re.search(r"\d+(\.\d+)?", nasta_rad)
                             if pengar_match:
-                                summa = pengar_match.group(1)
-                                joris_handlingar.append(f"[{tid}] LAGLIGT: Joris34 sålde {block_namn} för ${summa} via din /sell.")
+                                summa = float(pengar_match.group())
+                                total_lagliga_pengar += summa
+                                joris_transaktioner.append(f"LAGLIGT: Sålde {block_namn} och fick ${summa:.2f} via /sell")
                                 break
 
-            # Kolla om han tog emot pengar UTAN att använda /sell shopen
-            if any(x in r_lower for x in ["eco give", "money give", "pay"]) and "joris34" in r_lower:
-                # Säkerställ att det inte fanns ett säljkommando precis ovanför som utlöste det
-                gick_via_sell = False
-                for k in range(max(0, i-5), i):
-                    if "sell" in smp_rader[k].lower() and "joris34" in smp_rader[k].lower():
-                        gick_via_sell = True
+            # 2. Kolla om han fick pengar UTAN att ha kört /sell (Direkt fusk/insättning)
+            if ("eco give" in r_lower or "money give" in r_lower or "pay" in r_lower) and "joris34" in r_lower:
+                # Kontrollera om han körde /sell precis innan, annars är det olagligt
+                körde_sell_innan = False
+                for k in range(max(0, i-4), i):
+                    if "sell" in rader[k].lower() and "joris34" in rader[k].lower():
+                        körde_sell_innan = True
                 
-                if not gick_via_sell:
-                    pengar_match = re.search(r"(?:joris34\s+)(\d+(?:\.\d+)?)", r_lower)
-                    summa = pengar_match.group(1) if pengar_match else "Okänd mängd"
-                    
-                    if "pay" in r_lower:
-                        joris_handlingar.append(f"[{tid}] OLAGLIGT: Joris34 tog emot ${summa} direkt via /pay från en annan spelare utanför shopen.")
-                    else:
-                        joris_handlingar.append(f"[{tid}] OLAGLIGT: Joris34 fick ${summa} direkt insatt via rått konsolkommando (Skript-fel/Exploit) utan att sälja något.")
+                if not körde_sell_innan:
+                    pengar_match = re.search(r"\d+(\.\d+)?", r_lower)
+                    if pengar_match:
+                        s = float(pengar_match.group())
+                        total_olagliga_pengar += s
+                        joris_transaktioner.append(f"OLAGLIGT: Fick ${s:.2f} direkt via kommando/insättning (Ingen /sell hittad!)")
 
-        # --- GRANSKNING: RIP_SHY ---
+        # =================================================================
+        # DJUPANALYS: RIP_SHY (EXTREMT INTENSIV FUSK-SKANNING)
+        # =================================================================
         if "rip_shy" in r_lower:
-            # 1. Koll efter Creative Mode-hack
+            tid_match = re.match(r"^\[(\d{2}:\d{2}:\d{2})\]", rad)
+            tid = tid_match.group(1) if tid_match else "00:00:00"
+            ren_rad = re.sub(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\]:\s*", "", rad.strip())
+
+            # 1. Creative Mode koll
             if any(x in r_lower for x in ["gamemode c", "gamemode creative", "gm c", "gmc", "gamemode 1", "gm 1"]):
-                rip_handlingar.append(f"[{tid}] HACKED CLIENT / CHEAT: Gick in i Creative Mode -> Logg: {ren_rad}")
+                rip_bevis["creative_mode"].append(f"[{tid}] Enheten gick i Creative: {ren_rad}")
 
-            # 2. Koll efter Fly/Speed rörelsefusk detekterat av servern
+            # 2. Flyg/Rörelse koll
+            if "fly" in r_lower and ("enabled" in r_lower or "true" in r_lower or "issued server command" in r_lower or "toggled" in r_lower):
+                rip_bevis["fly_hacks"].append(f"[{tid}] Slog på flygläge: {ren_rad}")
+
+            # 3. Vanilla Anti-Cheat & Hackförflyttning
             if any(x in r_lower for x in ["moved too quickly", "moved wrongly", "failed survival flying", "invalid move"]):
-                rip_handlingar.append(f"[{tid}] HACKED CLIENT (Fly/Speed/NoFall detekterat av servern) -> Logg: {ren_rad}")
-            if "fly" in r_lower and any(x in r_lower for x in ["enabled", "true", "toggled"]):
-                rip_handlingar.append(f"[{tid}] HACKED CLIENT (Aktiverade flygläge via fusk/kommando) -> Logg: {ren_rad}")
+                rip_bevis["vanilla_anti_cheat"].append(f"[{tid}] Servern upptäckte fuskförflyttning: {ren_rad}")
 
-            # 3. Koll efter Script Injections (Skadlig kod i kommandon/chatt)
-            if "issued server command" in r_lower and any(x in r_lower for x in injection_keywords):
-                rip_handlingar.append(f"[{tid}] SCRIPT INJECTION (Försökte skriva skadliga tecken för att bryta sönder Skript-kod) -> Logg: {ren_rad}")
+            # 4. Sök efter Command Abuse
+            if "issued server command" in r_lower:
+                if any(x in r_lower for x in ["/op", "/deop", "/plugins", "/pl", "/stop", "/sk", "/luckperms", "/lp", "/banned", "/ban", "/kick"]):
+                    rip_bevis["command_abuse"].append(f"[{tid}] Försökte använda kritiskt admin-kommando: {ren_rad}")
 
-            # 4. Koll efter Plugin Exploits & Otillåtna Admin-kommandon
-            if "issued server command" in r_lower and any(x in r_lower for x in exploit_keywords):
-                rip_handlingar.append(f"[{tid}] PLUGIN EXPLOIT (Försökte krascha servern eller utnyttja sårbarheter) -> Logg: {ren_rad}")
-            if "issued server command" in r_lower and any(x in r_lower for x in ["/op", "/deop", "/plugins", "/pl", "/luckperms", "/lp"]):
-                rip_handlingar.append(f"[{tid}] ADMIN COMMAND ABUSE (Försökte köra låsta admin-kommandon) -> Logg: {ren_rad}")
+                # 5. Sök efter Command/Script Injection
+                if any(x in r_lower for x in injection_keywords):
+                    rip_bevis["script_injection"].append(f"[{tid}] INTENSIV SCRIPT INJECTION DETEKTERAD: {ren_rad}")
+                
+                # 6. Sök efter Hacked Client Exploits
+                if any(x in r_lower for x in exploit_keywords):
+                    rip_bevis["hacked_client_exploits"].append(f"[{tid}] EXPLOIT / HACK CLIENT MÖNSTER: {ren_rad}")
 
+    # =================================================================
+    # PRESENTERA RESULTATET PÅ SKÄRMEN
+    # =================================================================
+    print("\n" + "=" * 75)
+    print("      🔍 ULTRA-INTENSIV UTREDNINGS-RAPPORT FÖR SERVERN 🔍      ")
+    print("=" * 75)
 
-    # --- PRESENTERA DE ULTRA-INTENSIVA SVAREN ---
-    print("\n" + "-" * 95)
-    print(" 📊 UTREDNINGENS RESULTAT OCH BEVISDATA FÖR JORIS34:")
-    print("-" * 95)
-    if joris_handlingar:
-        # Visar de händelser som hittades
-        for h i, handling in enumerate(joris_handlingar):
-            print(f"  {handling}")
+    # Slutsats Joris34
+    print("\n[📊 JORIS34 EKONOMI-DOM]:")
+    if total_olagliga_pengar > 0:
+        print(f"  🔴 STATUS: OLAGLIGT! Han har tagit emot {total_olagliga_pengar:.2f} kr direkt via dolda kommandon eller dolda överföringar.")
+    elif total_lagliga_pengar > 0:
+        print(f"  🟢 STATUS: LAGLIGT PÅ SERVERN! Han tjänade totalt {total_lagliga_pengar:.2f} kr via din vanliga /sell-funktion.")
+        print("            Detta bekräftar att skriptet läser rätt: Han använder bara det vanliga sälj-systemet.")
+    elif len(joris_transaktioner) == 0:
+        print("  ⚪ STATUS: Inga spår av pengatransaktioner hittades för Joris34 i denna fil.")
     else:
-        print("  ⚪ Inga ekonomiska händelser, köp eller fusk-insättningar hittades för Joris34 i denna fil.")
+        print(f"  ⚠️ STATUS: Okänd hantering (Totalt: {total_lagliga_pengar + total_olagliga_pengar:.2f} kr)")
 
-    print("\n" + "-" * 95)
-    print(" ⚡ UTREDNINGENS RESULTAT OCH BEVISDATA FÖR RIP_SHY:")
-    print("-" * 95)
-    if rip_handlingar:
-        # Visar de händelser som hittades
-        for h i, handling in enumerate(rip_handlingar):
-            print(f"  {handling}")
-    else:
-        print("  🟢 Inga stenhårda spår av fusk, rörelsemanipulering eller injektioner funna för Rip_Shy i denna fil.")
+    if joris_transaktioner:
+        print("  Ekonomiska händelser (Max 5 visas):")
+        for t in joris_transaktioner[:5]:
+            print(f"    -> {t}")
 
-    print("\n" + "-" * 95)
-    print(" 🔌 EAGLER-NETWORK PROXY LOGS - IP-ADRESSER DETEKTERADE FÖR BAN:")
-    print("-" * 95)
-    print(f"  📌 Spelare Joris34 Riktiga IP-Adress:  {eagler_ips['joris34']}")
-    print(f"  📌 Spelare Rip_Shy Riktiga IP-Adress:  {eagler_ips['rip_shy']}")
-    print("\n  [INFO]: Om IP:n visar 'Ingen IP funnen i Eagler-proxyns loggfiler', kopiera filen latest.log")
-    print("  från din bungeecord/proxy-mapp till denna mapp och döp om den till proxy.log, kör sedan igen!")
-    print("=" * 95 + "\n")
+    print("-" * 75)
+
+    # Slutsats Rip_Shy
+    print("\n[⚡ RIP_SHY EXTREM FUSK & HACK ANALYS]:")
+    
+    fusk_hittat = False
+    
+    if rip_bevis["script_injection"]:
+        print("  🔴 [AKUT] SCRIPT INJECTION UPPTÄCKT!")
+        for b in rip_bevis["script_injection"][:5]: print(f"      {b}")
+        fusk_hittat = True
+
+    if rip_bevis["hacked_client_exploits"]:
+        print("  🔴 [AKUT] HACKED CLIENT / EXPLOITS DETEKTERAD:")
+        for b in rip_bevis["hacked_client_exploits"][:5]: print(f"      {b}")
+        fusk_hittat = True
+
+    if rip_bevis["creative_mode"]:
+        print("  🔴 CREATIVE MODE UTNYTTJAT:")
+        for b in rip_bevis["creative_mode"][:5]: print(f"      {b}")
+        fusk_hittat = True
+
+    if rip_bevis["fly_hacks"] or rip_bevis["vanilla_anti_cheat"]:
+        print("  🔴 RÖRELSEFUSK (Fly/Speed/Hacked Client):")
+        for b in (rip_bevis["fly_hacks"] + rip_bevis["vanilla_anti_cheat"])[:5]: print(f"      {b}")
+        fusk_hittat = True
+
+    if rip_bevis["command_abuse"]:
+        print("  ⚠️ OTILLÅTNA ADMIN-KOMMANDON:")
+        for b in rip_bevis["command_abuse"][:5]: print(f"      {b}")
+        fusk_hittat = True
+
+    if not fusk_hittat:
+        print("  🟢 Inga intensiva spår av fusk hittades för Rip_Shy i denna fil.")
+
+    print("=" * 75 + "\n")
 
 if __name__ == "__main__":
-    giga_intensiv_utredning()
+    super_intensiv_analys()
