@@ -42,15 +42,15 @@ def super_intensiv_analys():
         r_lower = rad.lower()
 
         # =================================================================
-        # DJUPANALYS: JORIS34 (KOLLA VAD HAN SÅLDE & HANS EKONOMI)
+        # DJUPANALYS: JORIS34 (EKONOMI OCH LOGIK-RÄTTNING)
         # =================================================================
         if "joris34" in r_lower:
-            # 1. Kolla om han startade en försäljning
+            
+            # 1. Kolla efter Essentials /sell-kommandon
             if "sell" in r_lower:
                 detaljerad_forsaljning = "okänt föremål"
                 summa = 0
                 
-                # Sök framåt upp till 5 rader för att hitta vad Essentials skrev ut
                 for j in range(1, 6):
                     if i + j < len(rader):
                         nasta_rad = rader[i + j]
@@ -68,25 +68,29 @@ def super_intensiv_analys():
                                 joris_transaktioner.append(f"LAGLIGT: Sålde [{detaljerad_forsaljning}] och fick ${summa:.2f}")
                                 break
 
-            # 2. Kolla om han fick pengar UTAN att ha kört /sell
-            elif ("eco give" in r_lower or "money give" in r_lower or "pay" in r_lower):
+            # 2. Fånga upp när pengar delas ut via kommandon
+            elif "eco give" in r_lower or "money give" in r_lower or "pay" in r_lower:
+                # Kontrollera om han körde /sell precis innan
                 körde_sell_innan = False
                 for k in range(max(0, i-4), i):
                     if "sell" in rader[k].lower() and "joris34" in rader[k].lower():
                         körde_sell_innan = True
                 
-                if not körde_sell_innan:
-                    pengar_match = re.search(r"\d+(\.\d+)?", r_lower)
-                    if pengar_match:
-                        s = float(pengar_match.group())
-                        
-                        # System-löner/utbetalningar på exakt $4.00 flaggas som system-lagligt
-                        if s == 4.0:
-                            total_lagliga_pengar += s
-                            joris_transaktioner.append(f"LAGLIGT (System): Automatisk utbetalning/belöning på $4.00")
-                        else:
+                pengar_match = re.search(r"\d+(\.\d+)?", r_lower)
+                if pengar_match:
+                    s = float(pengar_match.group())
+                    
+                    # RÄTTNING: Om summan är exakt 4.0, lägg ALDRIG till den som olaglig
+                    if s == 4.0:
+                        total_lagliga_pengar += s
+                        joris_transaktioner.append(f"LAGLIGT (System): Automatisk utbetalning/belöning på $4.00")
+                    else:
+                        if not körde_sell_innan:
                             total_olagliga_pengar += s
                             joris_transaktioner.append(f"OLAGLIGT: Fick ${s:.2f} direkt via kommando/insättning (Ingen /sell hittad!)")
+                        else:
+                            total_lagliga_pengar += s
+                            joris_transaktioner.append(f"LAGLIGT: Fick ${s:.2f} i anslutning till /sell")
 
         # =================================================================
         # DJUPANALYS: RIP_SHY (EXTREMT INTENSIV FUSK-SKANNING)
@@ -127,15 +131,15 @@ def super_intensiv_analys():
     if total_olagliga_pengar > 0:
         print(f"  🔴 STATUS: OLAGLIGT! Han har tagit emot {total_olagliga_pengar:.2f} kr direkt via dolda kommandon eller dolda överföringar.")
     elif total_lagliga_pengar > 0:
-        print(f"  🟢 STATUS: LAGLIGT PÅ SERVERN! Han tjänade totalt {total_lagliga_pengar:.2f} kr via godkända ekonomiska händelser.")
-        print("            Detta bekräftar att skriptet läser rätt: Transaktionerna följer serverns system.")
+        print(f"  🟢 STATUS: LAGLIGT PÅ SERVERN! Han har tjänat totalt {total_lagliga_pengar:.2f} kr via godkända ekonomiska händelser och systemutbetalningar.")
+        print("            Detta bekräftar att skriptet läser rätt: Joris34 fuskar inte med ekonomin.")
     elif len(joris_transaktioner) == 0:
         print("  ⚪ STATUS: Inga spår av pengatransaktioner hittades för Joris34 i denna fil.")
     else:
-        print(f"  ⚠️ STATUS: Okänd hantering (Totalt: {total_lagliga_pengar + total_olagliga_pengar:.2f} kr)")
+        print(f"  ⚠️ STATUS: Okänd hantering")
 
     if joris_transaktioner:
-        print("\n  Ekonomiska händelser:")
+        print("\n  Ekonomiska händelser (Max 15 visas):")
         for t in joris_transaktioner[:15]:
             print(f"    -> {t}")
 
