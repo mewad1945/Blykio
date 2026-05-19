@@ -73,8 +73,9 @@ def super_intensiv_analys():
                                 joris_transaktioner.append(f"LAGLIGT: Sålde {block_namn} och fick ${summa:.2f} via /sell")
                                 break
 
-            # 2. Kolla om han fick pengar UTAN att ha kört /sell
+            # 2. Kolla om han fick pengar UTAN att ha kört /sell (Direkt fusk/insättning)
             if ("eco give" in r_lower or "money give" in r_lower or "pay" in r_lower) and "joris34" in r_lower:
+                # Kontrollera om han körde /sell precis innan, annars är det olagligt
                 körde_sell_innan = False
                 for k in range(max(0, i-4), i):
                     if "sell" in rader[k].lower() and "joris34" in rader[k].lower():
