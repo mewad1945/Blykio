@@ -140,4 +140,35 @@ def super_intensiv_analys():
     print("-" * 70)
 
     # Slutsats Rip_Shy
-    print("\n
+    print("\n[⚡ RIP_SHY FUSK & HACK ANALYS]:")
+    
+    fusk_hittat = False
+    
+    if rip_bevis["script_injection"]:
+        print("  🔴 [AKUT] SCRIPT INJECTION UPPTÄCKT!")
+        print("     Han har försökt skriva in citattecken eller dolda LuckPerms-kommandon för att krascha/lura dina Skript.")
+        for b in rip_bevis["script_injection"][:3]: print(f"      {b}")
+        fusk_hittat = True
+
+    if rip_bevis["creative_mode"]:
+        print("  🔴 CREATIVE MODE UTNYTTJAT:")
+        for b in rip_bevis["creative_mode"][:3]: print(f"      {b}")
+        fusk_hittat = True
+
+    if rip_bevis["fly_hacks"] or rip_bevis["vanilla_anti_cheat"]:
+        print("  🔴 HACKED CLIENT / FLY / SPEED DETECTION:")
+        for b in (rip_bevis["fly_hacks"] + rip_bevis["vanilla_anti_cheat"])[:3]: print(f"      {b}")
+        fusk_hittat = True
+
+    if rip_bevis["command_abuse"]:
+        print("  ⚠️ OTILLÅTNA ADMIN-KOMMANDON:")
+        for b in rip_bevis["command_abuse"][:3]: print(f"      {b}")
+        fusk_hittat = True
+
+    if not fusk_hittat:
+        print("  🟢 Inga stenhårda spår av Fly-hacks, Creative Mode eller Script Injections hittades för Rip_Shy i just denna fil.")
+
+    print("=" * 70 + "\n")
+
+if __name__ == "__main__":
+    super_intensiv_analys()
