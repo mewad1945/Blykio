@@ -1,127 +1,87 @@
-import re
 import os
 
 LOG_FILE_PATH = "latest.log"
 
-def skriv_ut_tabell_linje(bredder):
-    print("+" + "+".join(["-" * (w + 2) for w in bredder]) + "+")
-
-def skriv_ut_rad(data, bredder):
-    formaterad_data = [str(item)[:w].ljust(w) for item, w in zip(data, bredder)]
-    print("| " + " | ".join(formaterad_data) + " |")
-
-def skanna_server_logg():
+def intensiv_skanning():
     if not os.path.exists(LOG_FILE_PATH):
-        print(f"Hittade inte loggfilen: {LOG_FILE_PATH}.")
+        print("Hittade inte latest.log! Lägg skriptet i rätt mapp.")
         return
 
-    rip_shy_events = []
-    joris_events = []
+    with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="ignore") as f:
+        rader = f.readlines()
+
+    # Variabler för att samla stenhårda bevis
+    joris_sell_count = 0
+    joris_received_from_rip = False
+    joris_illegal_eco = False
     
-    # Sökord för Rip_Shy (fokus på fly, creative, gm, op, fly-hacks)
-    rip_keywords = ["fly", "gamemode", "gm", "creative", "op", "deop", "permission", "setblock"]
-    
-    # Sökord för Joris34 (fokus på ekonomi, din hemmasnickrade /sell, worth och eco give)
-    joris_keywords = ["sell", "shop", "worth", "eco", "give", "money", "balance", "vault"]
+    rip_gmc = False
+    rip_fly = False
+    rip_script_injection = False
 
-    print("\n" + "=" * 80)
-    print(" LÄSER IN LOGGFIL OCH ANALYSERAR TIDSLINJEN... ".center(80, "="))
-    print("=" * 80 + "\n")
-
-    with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="ignore") as file:
-        rader = file.readlines()
-
+    # Loopa igenom HELA loggen rad för rad
     for i, rad in enumerate(rader):
-        rad_clean = rad.strip()
-        
-        # Extrahera tidstämpel om den finns (t.ex. [13:09:29])
-        tid_match = re.match(r"^\[(\d{2}:\d{2}:\d{2})\]", rad_clean)
-        tid = tid_match.group(1) if tid_match else "Okänd tid"
-        
-        # Ta bort tid och info-taggar för renare text i tabellen
-        ren_text = re.sub(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\]:\s*", "", rad_clean)
+        r_lower = rad.lower()
 
-        # -------------------------------------------------------------
-        # 1. SPÅRA RIP_SHY (Kommandon, Fly, Creative, fusktendenser)
-        # -------------------------------------------------------------
-        if "rip_shy" in rad_clean.lower():
-            event_typ = "Kommando"
-            if any(k in rad_clean.lower() for k in ["op", "permission"]):
-                event_typ = "Behörighet"
-            elif any(k in rad_clean.lower() for k in ["creative", "gamemode", "gm"]):
-                event_typ = "Spelläge"
-            elif "fly" in rad_clean.lower():
-                event_typ = "Flyg/Rörelse"
-                
-            rip_shy_events.append([tid, event_typ, ren_text])
-            
-        # Spara även om konsolen ändrar något på Rip_Shy utan att hans namn står som utförare
-        elif "rip_shy" in rad_clean.lower() and "issued server command" not in rad_clean.lower():
-            if any(k in rad_clean.lower() for k in rip_keywords):
-                rip_shy_events.append([tid, "Konsol/System", ren_text])
+        # --- JORIS34 DJUPANALYS ---
+        if "joris34" in r_lower:
+            if "sell" in r_lower:
+                joris_sell_count += 1
+            if "pay" in r_lower and "rip_shy" in r_lower:
+                joris_received_from_rip = True
+            if "eco give" in r_lower or "money give" in r_lower:
+                # Kolla om det fanns en /sell-handling precis innan
+                gick_via_sell = False
+                for j in range(max(0, i-3), i):
+                    if "sell" in rader[j].lower():
+                        gick_via_sell = True
+                if not gick_via_sell:
+                    joris_illegal_eco = True
 
-        # -------------------------------------------------------------
-        # 2. SPÅRA JORIS34 & DIN SPECIELLA /SELL (Worth + Eco Give)
-        # -------------------------------------------------------------
-        if "joris34" in rad_clean.lower():
-            event_typ = "Spelare Aktiv"
-            if "sell" in rad_clean.lower() or "shop" in rad_clean.lower():
-                event_typ = "Öppnade Shop/Sell"
-            elif "worth" in rad_clean.lower():
-                event_typ = "Kollade Värde"
-                
-            joris_events.append([tid, event_typ, ren_text])
-            
-            # KOLLA RADERNA PRECIS EFTER (Tidslinje-analys för dolda konsolkommandon!)
-            # Om ditt GUI kör "worth" och sedan "eco give" sekunden efter:
-            for j in range(1, 4): # Kollar upp till 3 rader efter Joris handling
-                if i + j < len(rader):
-                    nasta_rad = rader[i + j].strip()
-                    nasta_tid_match = re.match(r"^\[(\d{2}:\d{2}:\d{2})\]", nasta_rad)
-                    nasta_tid = nasta_tid_match.group(1) if nasta_tid_match else tid
-                    nasta_ren = re.sub(r"^\[\d{2}:\d{2}:\d{2}\s+\w+\]:\s*", "", nasta_rad)
-                    
-                    if "eco" in nasta_rad.lower() or "give" in nasta_rad.lower() or "worth" in nasta_rad.lower():
-                        if nasta_ren not in [e[2] for e in joris_events]: # Undvik dubbletter
-                            joris_events.append([nasta_tid, "Kopplat Konsol-Kommando", f"[Triggad av Joris] {nasta_ren}"])
+        # --- RIP_SHY DJUPANALYS ---
+        if "rip_shy" in r_lower:
+            if any(x in r_lower for x in ["gamemode c", "gamemode creative", "gm c", "gmc"]):
+                rip_gmc = True
+            if "fly" in r_lower:
+                rip_fly = True
+            # Letar efter tecken på Script Injection (konstiga kommandoförsök)
+            if "issued server command" in r_lower:
+                if any(x in r_lower for x in ["\"", "'", "&&", "eval", "skript", "parent set"]):
+                    rip_script_injection = True
 
-        # Fånga upp lösa "eco give" eller "worth" i loggen som kan ha missats
-        elif any(x in rad_clean.lower() for x in ["eco give", "worth"]) and "2000000" in rad_clean.lower():
-            joris_events.append([tid, "Oidentifierad Miljonaffär", ren_text])
+    print("\n" + "=" * 60)
+    print("      INTENSIV ANALYS KLART – HÄR ÄR SVARET:")
+    print("=" * 60)
 
-    # -------------------------------------------------------------
-    # SKRIV UT TABELLERNA
-    # -------------------------------------------------------------
-    
-    # TABELL 1: RIP_SHY
-    print(" TABELL: RIP_SHY - MISSTÄNKTA KOMMANDON / FLY / CREATIVE ")
-    bredder_rip = [10, 15, 85]
-    skriv_ut_tabell_linje(bredder_rip)
-    skriv_ut_rad(["TID", "HÄNDELSE", "LOGG-TEXT (VAD SOM HÄNDE)"], bredder_rip)
-    skriv_ut_tabell_linje(bredder_rip)
-    if rip_shy_events:
-        for ev in rip_shy_events:
-            skriv_ut_rad(ev, bredder_rip)
+    # SLUTSATS: JORIS34
+    if joris_received_from_rip:
+        print("[JORIS34]: OLAGLIGT. Han tog emot pengarna direkt från fuskaren Rip_Shy via /pay.")
+    elif joris_illegal_eco:
+        print("[JORIS34]: OLAGLIGT. Någon (eller ett hack) körde /eco give på honom utan att han sålde något.")
+    elif joris_sell_count > 0:
+        print(f"[JORIS34]: LAGLIGT MEN BUGGAT. Han använde din /sell {joris_sell_count} gånger. Priserna i ditt sälj-GUI är felinställda!")
     else:
-        skriv_ut_rad(["-", "Inga fynd", "Hittade inga misstänkta rader för Rip_Shy."], bredder_rip)
-    skriv_ut_tabell_linje(bredder_rip)
+        print("[JORIS34]: INGA SPÅR. Hittade inga miljonaffärer alls kopplade till honom i denna fil.")
 
-    print("\n\n" + "="*120 + "\n\n")
-
-    # TABELL 2: JORIS34
-    print(" TABELL: JORIS34 - EKONOMI / /SELL / WORTH / ECO GIVE ")
-    bredder_joris = [10, 25, 75]
-    skriv_ut_tabell_linje(bredder_joris)
-    skriv_ut_rad(["TID", "KATEGORI", "DETALJER (SE OM DET STÅR WORTH / ECO GIVE)"], bredder_joris)
-    skriv_ut_tabell_linje(bredder_joris)
-    if joris_events:
-        # Sortera efter tid så tidslinjen blir helt perfekt
-        joris_events.sort(key=lambda x: x[0])
-        for ev in joris_events:
-            skriv_ut_rad(ev, bredder_joris)
+    # SLUTSATS: RIP_SHY
+    if rip_gmc and rip_fly:
+        print("[RIP_SHY]: FUSKADE. Tog sig in i Creative Mode OCH slog på Fly.")
+    elif rip_gmc:
+        print("[RIP_SHY]: FUSKADE. Gick in i Creative Mode (/gamemode c).")
+    elif rip_fly:
+        print("[RIP_SHY]: FUSKADE. Slog på flyg-läge.")
     else:
-        skriv_ut_rad(["-", "Inga fynd", "Hittade inga ekonomiska loggar för Joris34."], bredder_joris)
-    skriv_ut_tabell_linje(bredder_joris)
+        print("[RIP_SHY]: Inga spår av Creative/Fly.")
+
+    # SLUTSATS: SCRIPT INJECTION / HACK METOD
+    if rip_script_injection:
+        print("[METOD]: SCRIPT INJECTION. Rip_Shy försökte lura dina Skript att köra konsolkommandon!")
+    elif joris_illegal_eco or rip_gmc:
+        print("[METOD]: OP-LÄCKA. De har troligen lyckats få OP-rättigheter eller stulit stjärn-permission (*).")
+    else:
+        print("[METOD]: Inga tecken på systemhack. Det rör sig troligen om felinställda priser i ditt sälj-GUI.")
+
+    print("=" * 60 + "\n")
 
 if __name__ == "__main__":
-    skanna_server_logg()
+    intensiv_skanning()
