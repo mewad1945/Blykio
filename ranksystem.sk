@@ -1,0 +1,204 @@
+# ==========================================
+# AUTOMATIC RANK CREATION & WEIGHTS
+# ==========================================
+
+function checkAndCreateRanks():
+    execute console command "lp creategroup owner"
+    execute console command "lp group owner permission set weight.100 true"
+
+    execute console command "lp creategroup assistantmanager"
+    execute console command "lp group assistantmanager permission set weight.90 true"
+
+    execute console command "lp creategroup developer"
+    execute console command "lp group developer permission set weight.85 true"
+
+    execute console command "lp creategroup mod"
+    execute console command "lp group mod permission set weight.80 true"
+
+    execute console command "lp creategroup builder"
+    execute console command "lp group builder permission set weight.70 true"
+
+    execute console command "lp creategroup og"
+    execute console command "lp group og permission set weight.60 true"
+
+    execute console command "lp creategroup player"
+    execute console command "lp group player permission set weight.5 true"
+
+    set {_ranks::*} to "bronze", "silver", "gold", "platinum", "diamond", "elite" and "pro"
+    set {_weights::*} to 11, 12, 13, 14, 15, 16 and 17
+    loop {_ranks::*}:
+        set {_r} to loop-value
+        set {_w} to {_weights::%loop-index%}
+        execute console command "lp creategroup %{_r}%"
+        execute console command "lp group %{_r}% permission set weight.%{_w}% true"
+
+on load:
+    wait 2 seconds
+    checkAndCreateRanks()
+    send "[Skript] All staff and points ranks have been successfully created and synced with modern LuckPerms weights!" to console
+
+# ==========================================
+# CONFIGURATION - RANKS (0-500)
+# ==========================================
+
+function getRankName(p: player) :: text:
+    set {_pts} to {points::%{_p}'s uuid%}
+    if {_pts} >= 450:
+        return "PRO"
+    if {_pts} >= 400:
+        return "ELITE"
+    if {_pts} >= 300:
+        return "DIAMOND"
+    if {_pts} >= 200:
+        return "PLATINUM"
+    if {_pts} >= 100:
+        return "GOLD"
+    if {_pts} >= 50:
+        return "SILVER"
+    return "BRONZE"
+
+function getRankColor(p: player) :: text:
+    set {_pts} to {points::%{_p}'s uuid%}
+    if {_pts} >= 450:
+        return "&d"
+    if {_pts} >= 400:
+        return "&5"
+    if {_pts} >= 300:
+        return "&b"
+    if {_pts} >= 200:
+        return "&3"
+    if {_pts} >= 100:
+        return "&6"
+    if {_pts} >= 50:
+        return "&7"
+    return "&8"
+
+function updateName(p: player):
+    set {_rankraw} to lowercase uncolored getRankName({_p})
+    
+    execute console command "lp user %{_p}% parent remove bronze"
+    execute console command "lp user %{_p}% parent remove silver"
+    execute console command "lp user %{_p}% parent remove gold"
+    execute console command "lp user %{_p}% parent remove platinum"
+    execute console command "lp user %{_p}% parent remove diamond"
+    execute console command "lp user %{_p}% parent remove elite"
+    execute console command "lp user %{_p}% parent remove pro"
+    
+    if {_p} does not have permission "group.owner" or "group.assistantmanager" or "group.developer" or "group.mod" or "group.builder" or "group.og":
+        execute console command "lp user %{_p}% parent add player"
+    
+    execute console command "lp user %{_p}% parent add %{_rankraw}%"
+    
+    set {_staffprefix} to "&2[Player] "
+    if {_p} has permission "group.owner":
+        set {_staffprefix} to "&4&l[Owner] "
+    else if {_p} has permission "group.assistantmanager":
+        set {_staffprefix} to "&c&l[Asst.Manager] "
+    else if {_p} has permission "group.developer":
+        set {_staffprefix} to "&b&l[Dev] "
+    else if {_p} has permission "group.mod":
+        set {_staffprefix} to "&2&l[Mod] "
+    else if {_p} has permission "group.builder":
+        set {_staffprefix} to "&a&l[Builder] "
+    else if {_p} has permission "group.og":
+        set {_staffprefix} to "&e&l[OG] "
+        
+    set {_chatname} to "&f[%getRankColor({_p})%%getRankName({_p})%&f] %{_staffprefix}%%name of {_p}%"
+    set {cached_fullname::%{_p}'s uuid%} to {_chatname}
+    
+    # --- KRASCH-SÄKRAD TAB-LISTA (Max 16 tecken) ---
+    set {_tabname} to "%{_staffprefix}%%name of {_p}%"
+    if length of uncolored {_tabname} > 16:
+        set {_tabname} to subtext of {_tabname} from 1 to 16
+    set {cached_tabname::%{_p}'s uuid%} to {_tabname}
+    
+    set {_p}'s tab list name to {_tabname}
+    set {_p}'s display name to {_chatname}
+
+every 2 seconds:
+    loop all players:
+        if {cached_tabname::%loop-player's uuid%} is set:
+            set loop-player's tab list name to {cached_tabname::%loop-player's uuid%}
+
+# ==========================================
+# DEATH & KILL LOGIC (WITH ANTI-FARM)
+# ==========================================
+
+on death of player:
+    victim is a player
+    if attacker is not a player:
+        broadcast "&c&l☠ &e%victim% &7died in the wild."
+        stop
+    attacker is a player
+    set {_waited} to difference between {cooldown::%attacker's uuid%::%victim's uuid%} and now
+    if {_waited} is less than 10 minutes:
+        send "&c&l» &7No points awarded! You must wait 10m before killing &e%victim% &7for points again." to attacker
+        broadcast "&c&l☠ &e%attacker% &7slaughtered &e%victim% &7(No points awarded due to anti-farm)."
+        stop
+    set {_a_pts} to {points::%attacker's uuid%} if {points::%attacker's uuid%} is set else 0
+    set {_v_pts} to {points::%victim's uuid%} if {points::%victim's uuid%} is set else 0
+    if {_v_pts} > {_a_pts}:
+        set {_reward} to 2
+    else:
+        set {_reward} to 1
+    add {_reward} to {points::%attacker's uuid%}
+    set {name_storage::%attacker's uuid%} to name of attacker
+    send "&a&l» &7You killed &e%victim% &7and got &a%{_reward}% &7points!" to attacker
+    set {cooldown::%attacker's uuid%::%victim's uuid%} to now
+    if {_a_pts} < {_v_pts}:
+        set {_loss} to 2
+    else:
+        set {_loss} to 1
+    if {points::%victim's uuid%} > 0:
+        remove {_loss} from {points::%victim's uuid%}
+        send "&c&l» &7You were killed by &e%attacker% &7and lost &c%{_loss}% &7points." to victim
+        set {_lostmsg} to "lost &c%{_loss}% &7points"
+    else:
+        set {points::%victim's uuid%} to 0
+        send "&c&l» &7You were killed but you are already at 0 points." to victim
+        set {_lostmsg} to "is already at 0 points"
+    set {name_storage::%victim's uuid%} to name of victim
+    if {points::%attacker's uuid%} > 500:
+        set {points::%attacker's uuid%} to 500
+    broadcast "&6&l⚔ &e%attacker% &7killed &e%victim% &8| &a+%{_reward}% pts &7for killer, &e%victim% %{_lostmsg}%&7!"
+    updateName(attacker)
+    updateName(victim)
+
+on join:
+    set {name_storage::%player's uuid%} to name of player
+    if {points::%player's uuid%} is not set:
+        set {points::%player's uuid%} to 0
+    wait 20 ticks
+    if player does not have permission "group.owner" or "group.assistantmanager" or "group.developer" or "group.mod" or "group.builder" or "group.og" or "group.player":
+        execute console command "lp user %player% parent add player"
+    updateName(player)
+
+on chat:
+    cancel event
+    if {cached_fullname::%player's uuid%} is not set:
+        updateName(player)
+    broadcast "%{cached_fullname::%player's uuid%}%&f: %message%"
+
+command /stats [<player>]:
+    trigger:
+        set {_t} to arg-1 if arg-1 is set else player
+        if {points::%uuid of {_t}%} is not set:
+            set {points::%uuid of {_t}%} to 0
+        send "&8&m----------------------------"
+        send "  &e&l%name of {_t}%'s Stats"
+        send "  &7Points: &f%{points::%uuid of {_t}%}% &8/ &6500"
+        send "  &7Rank: %getRankColor({_t})%%getRankName({_t})%"
+        send "&8&m----------------------------"
+
+command /cleanranks:
+    permission: op
+    trigger:
+        send "&e&l[Skript] &7Städar upp alla spelares ränger..." to player
+        loop all players:
+            updateName(loop-player)
+        send "&a&l[Skript] &fKlart! Alla spelare har återställts." to player
+
+command /top:
+    trigger:
+        send "&8&m--------&r &6&lLEADERBOARD (Top 10) &8&m--------"
+        # (Resten av din kod här...)
