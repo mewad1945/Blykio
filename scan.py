@@ -15,7 +15,6 @@ def super_intensiv_analys():
     joris_transaktioner = []
     total_lagliga_pengar = 0
     total_olagliga_pengar = 0
-    joris_har_saljt = False
 
     # --- VARIABLER FÖR RIP_SHY (UPPGRADRAD EXTREM SÖKNING) ---
     rip_bevis = {
@@ -48,7 +47,6 @@ def super_intensiv_analys():
         if "joris34" in r_lower:
             # 1. Kolla om han startade en försäljning
             if "sell" in r_lower:
-                joris_har_saljt = True
                 detaljerad_forsaljning = "okänt föremål"
                 summa = 0
                 
@@ -58,13 +56,10 @@ def super_intensiv_analys():
                         nasta_rad = rader[i + j]
                         nasta_rad_lower = nasta_rad.lower()
                         
-                        # NYTT: Fångar hela texten runt 'worth' (t.ex. "Stack of chainmailboots worth $150")
                         if "worth" in nasta_rad_lower:
-                            # Rensar bort tidstämplar [00:00:00 INFO] i början av raden så bara texten blir kvar
                             ren_text = re.sub(r"^\[.*?\]:\s*", "", nasta_rad.strip())
                             detaljerad_forsaljning = ren_text
 
-                        # Fånga upp pengarna som gavs direkt efteråt
                         if "eco give" in nasta_rad_lower or "money give" in nasta_rad_lower or "eco:give" in nasta_rad_lower:
                             pengar_match = re.search(r"\d+(\.\d+)?", nasta_rad_lower)
                             if pengar_match:
@@ -74,7 +69,7 @@ def super_intensiv_analys():
                                 break
 
             # 2. Kolla om han fick pengar UTAN att ha kört /sell
-            if ("eco give" in r_lower or "money give" in r_lower or "pay" in r_lower) and "joris34" in r_lower:
+            elif ("eco give" in r_lower or "money give" in r_lower or "pay" in r_lower):
                 körde_sell_innan = False
                 for k in range(max(0, i-4), i):
                     if "sell" in rader[k].lower() and "joris34" in rader[k].lower():
@@ -86,7 +81,7 @@ def super_intensiv_analys():
                         s = float(pengar_match.group())
                         
                         # System-löner/utbetalningar på exakt $4.00 flaggas som system-lagligt
-                        if s == 4.0 and ("console" in r_lower or "essentials" in r_lower or "cron" in r_lower):
+                        if s == 4.0:
                             total_lagliga_pengar += s
                             joris_transaktioner.append(f"LAGLIGT (System): Automatisk utbetalning/belöning på $4.00")
                         else:
@@ -140,8 +135,8 @@ def super_intensiv_analys():
         print(f"  ⚠️ STATUS: Okänd hantering (Totalt: {total_lagliga_pengar + total_olagliga_pengar:.2f} kr)")
 
     if joris_transaktioner:
-        print("\n  Ekonomiska händelser (Här ser du exakt VAD han sålde):")
-        for t in joris_transaktioner[:15]: # Ökat till max 15 rader så du ser ordentligt
+        print("\n  Ekonomiska händelser:")
+        for t in joris_transaktioner[:15]:
             print(f"    -> {t}")
 
     print("-" * 75)
