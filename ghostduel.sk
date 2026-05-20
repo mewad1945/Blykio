@@ -11,6 +11,11 @@ options:
 # --- LOBBY SYSTEM (MODIFIED FOR ITEMJOIN) ---
 function giveLobbyItems(p: player):
     clear {_p}'s inventory
+    set {_p}'s helmet to air
+    set {_p}'s chestplate to air
+    set {_p}'s leggings to air
+    set {_p}'s boots to air
+    set {_p}'s offhand tool to air
     execute console command "itemjoin give %{_p}%"
 
 on join:
@@ -405,18 +410,19 @@ function finalizeMatch(w: player, l: player, kit: text, arena: text):
     delete {stats::%{_l}%::*}
     
     wait 10 ticks
+    # Fix: Rensar inventoryt och ger rätt saker i slutet av matchen
     if {_w} is online:
         heal {_w}
         extinguish {_w}
         teleport {_w} to spawn of world "world"
         wait 5 ticks
-        execute console command "itemjoin give %{_w}%"
+        giveLobbyItems({_w})
     if {_l} is online:
         heal {_l}
         extinguish {_l}
         teleport {_l} to spawn of world "world"
         wait 5 ticks
-        execute console command "itemjoin give %{_l}%"
+        giveLobbyItems({_l})
 
 # --- MATCHMAKING & ROUNDS ---
 command /duel:
@@ -541,18 +547,29 @@ function startRound(p1: player, p2: player, kit: text, arena: text):
     teleport {_p2} to {arena::%{_arena}%::spawn::2}
     
     clear {_p1}'s inventory
+    set {_p1}'s helmet to air
+    set {_p1}'s chestplate to air
+    set {_p1}'s leggings to air
+    set {_p1}'s boots to air
+    set {_p1}'s offhand tool to air
+    
     clear {_p2}'s inventory
+    set {_p2}'s helmet to air
+    set {_p2}'s chestplate to air
+    set {_p2}'s leggings to air
+    set {_p2}'s boots to air
+    set {_p2}'s offhand tool to air
     
-    # 2. FIX: 11.5 Armor Slots (Så det inte hamnar i inventory)
-    set slot 39 of {_p1}'s inventory to {kit::%{_kit}%::helmet}
-    set slot 38 of {_p1}'s inventory to {kit::%{_kit}%::chest}
-    set slot 37 of {_p1}'s inventory to {kit::%{_kit}%::legs}
-    set slot 36 of {_p1}'s inventory to {kit::%{_kit}%::boots}
+    # 2. FIX: Ändrat till Skripts standard rustningssystem så det INTE dupliceras i inventoryt
+    set {_p1}'s helmet to {kit::%{_kit}%::helmet}
+    set {_p1}'s chestplate to {kit::%{_kit}%::chest}
+    set {_p1}'s leggings to {kit::%{_kit}%::legs}
+    set {_p1}'s boots to {kit::%{_kit}%::boots}
     
-    set slot 39 of {_p2}'s inventory to {kit::%{_kit}%::helmet}
-    set slot 38 of {_p2}'s inventory to {kit::%{_kit}%::chest}
-    set slot 37 of {_p2}'s inventory to {kit::%{_kit}%::legs}
-    set slot 36 of {_p2}'s inventory to {kit::%{_kit}%::boots}
+    set {_p2}'s helmet to {kit::%{_kit}%::helmet}
+    set {_p2}'s chestplate to {kit::%{_kit}%::chest}
+    set {_p2}'s leggings to {kit::%{_kit}%::legs}
+    set {_p2}'s boots to {kit::%{_kit}%::boots}
 
     # Fyller inventory (0-35)
     loop 36 times:
