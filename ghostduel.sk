@@ -1,0 +1,710 @@
+# ======================================================
+# GHOSTDUEL - THE MASTER UPDATE (FULL CODE)
+# Version: 3.8 - Strict 11.5 Armor/Potion Syntax + Queue Block
+# ======================================================
+
+options:
+    prefix: &8[&bGhostDuel&8]
+    wand_name: &bGhost Wand
+    leave_item: red dye named "&c&lLeave Queue &7(Right Click)"
+
+# --- LOBBY SYSTEM (MODIFIED FOR ITEMJOIN) ---
+function giveLobbyItems(p: player):
+    clear {_p}'s inventory
+    execute console command "itemjoin give %{_p}%"
+
+on join:
+    giveLobbyItems(player)
+
+on right click:
+    if player's tool is {@leave_item}:
+        make player execute command "/leavequeue"
+
+# --- POINTS & TIER SYSTEM ---
+function getTierValue(pts: number) :: number:
+    if {_pts} <= 199:
+        return 1 # LT5
+    if {_pts} <= 499:
+        return 2 # HT5
+    if {_pts} <= 799:
+        return 3 # LT4
+    if {_pts} <= 1599:
+        return 4 # HT4
+    if {_pts} <= 1999:
+        return 5 # LT3
+    if {_pts} <= 2999:
+        return 6 # HT3
+    if {_pts} <= 4999:
+        return 7 # LT2
+    if {_pts} <= 6999:
+        return 8 # HT2
+    if {_pts} <= 9999:
+        return 9 # LT1
+    return 10 # HT1
+
+function getTier(p: player, kit: text) :: text:
+    if {placements::%{_p}%::%{_kit}%} is not set:
+        set {placements::%{_p}%::%{_kit}%} to 5
+        
+    if {placements::%{_p}%::%{_kit}%} > 0:
+        return "&7Unranked (%{placements::%{_p}%::%{_kit}%}%/5)"
+        
+    set {_pts} to {points::%{_p}%::%{_kit}%}
+    if {_pts} <= 199:
+        return "&fLT5"
+    if {_pts} <= 499:
+        return "&fHT5"
+    if {_pts} <= 799:
+        return "&eLT4"
+    if {_pts} <= 1599:
+        return "&eHT4"
+    if {_pts} <= 1999:
+        return "&6LT3"
+    if {_pts} <= 2999:
+        return "&6HT3"
+    if {_pts} <= 4999:
+        return "&dLT2"
+    if {_pts} <= 6999:
+        return "&dHT2"
+    if {_pts} <= 9999:
+        return "&bLT1"
+    return "&b&lHT1"
+
+# --- THE ADVANCED ALGORITHM ---
+function calculatePerformance(w: player, l: player, kit: text) :: number:
+    set {_val} to 30 
+    
+    # General: HP Bonus
+    if {_w}'s health >= 18:
+        add 15 to {_val}
+    else if {_w}'s health >= 10:
+        add 5 to {_val}
+    else if {_w}'s health <= 3:
+        remove 5 from {_val} 
+        
+    # General: Time Bonus
+    set {_timeTaken} to difference between {match::%{_w}%::starttime} and now
+    if {_timeTaken} is less than 20 seconds:
+        add 10 to {_val}
+    
+    # General: Underdog Bonus
+    if {points::%{_l}%::%{_kit}%} > {points::%{_w}%::%{_kit}%}:
+        add 10 to {_val}
+
+    # Kit Specific
+    if {_kit} is "Sword":
+        add ({stats::%{_w}%::maxcombo} * 2) to {_val}
+        if {stats::%{_w}%::hits_taken} < {stats::%{_w}%::hits_given}:
+            add 10 to {_val}
+            
+    if {_kit} is "Axe":
+        add ({stats::%{_w}%::crits} * 3) to {_val}
+        if {stats::%{_w}%::crits} >= 10:
+            add 15 to {_val}
+            
+    if {_kit} is "Mace":
+        if {stats::%{_w}%::wind_charges} <= 3:
+            add 15 to {_val}
+        if {stats::%{_w}%::ender_pearls} <= 2:
+            add 10 to {_val}
+        if {stats::%{_w}%::max_damage_dealt} >= 20:
+            add 30 to {_val}
+            
+    if {_kit} is "Vanilla":
+        set {_totems_w} to {stats::%{_w}%::totems_popped}
+        set {_totems_l} to {stats::%{_l}%::totems_popped}
+        if {_totems_l} > {_totems_w}:
+            add ({_totems_l} - {_totems_w}) * 10 to {_val}
+        add ({stats::%{_w}%::hits_given} / 10) to {_val}
+            
+    if {_kit} is "UHC":
+        add ({stats::%{_w}%::lava_hits} * 5) to {_val}
+        add ({stats::%{_w}%::traps} * 5) to {_val}
+        add ({stats::%{_w}%::crossbow_hits} * 2) to {_val}
+
+    if {_kit} is "Pot":
+        if {stats::%{_w}%::potions_used} <= 5:
+            add 20 to {_val}
+        else if {stats::%{_w}%::potions_used} <= 15:
+            add 10 to {_val}
+
+    if {_kit} is "Cart":
+        add ({stats::%{_w}%::crossbow_hits} * 3) to {_val}
+        if {stats::%{_w}%::carts_placed} <= 5:
+            add 10 to {_val}
+
+    if {_kit} is "Neth_OP":
+        add ({stats::%{_w}%::crystals_placed} * 2) to {_val}
+        if {stats::%{_w}%::maxcombo} >= 5:
+            add 10 to {_val}
+
+    if {_val} > 150:
+        set {_val} to 150
+
+    return rounded {_val}
+
+# --- PRE-MATCH FREEZE LOGIC ---
+on right click:
+    if {match::%player%::waiting} is true:
+        cancel event
+on drop:
+    if {match::%player%::waiting} is true:
+        cancel event
+on projectile shoot:
+    if {match::%shooter%::waiting} is true:
+        cancel event
+
+# --- STATS TRACKING & HP INDICATOR ---
+on damage:
+    attacker is a player
+    victim is a player
+    {match::%attacker%::arena} is set
+    
+    set {_hp} to rounded (victim's health * 2)
+    send action bar "&c&l%victim% HP: &f%{_hp}%&7/20" to attacker
+
+    add 1 to {stats::%attacker%::hits_given}
+    add 1 to {stats::%victim%::hits_taken}
+    
+    if damage > {stats::%attacker%::max_damage_dealt}:
+        set {stats::%attacker%::max_damage_dealt} to damage
+
+    if damage >= victim's health:
+        if victim's tool is totem of undying:
+            add 1 to {stats::%victim%::totems_popped}
+        else if victim's offhand tool is totem of undying:
+            add 1 to {stats::%victim%::totems_popped}
+
+    add 1 to {stats::%attacker%::combo}
+    set {stats::%victim%::combo} to 0
+    if {stats::%attacker%::combo} > {stats::%attacker%::maxcombo}:
+        set {stats::%attacker%::maxcombo} to {stats::%attacker%::combo}
+    if attacker's fall distance > 0.1:
+        if attacker is not on ground:
+            add 1 to {stats::%attacker%::crits}
+
+    if damage cause is projectile:
+        add 1 to {stats::%attacker%::crossbow_hits}
+
+    if damage cause is lava:
+        add 1 to {stats::%attacker%::lava_hits} 
+
+on right click:
+    {match::%player%::arena} is set
+    if event-item is wind charge:
+        add 1 to {stats::%player%::wind_charges}
+    else if event-item is ender pearl:
+        add 1 to {stats::%player%::ender_pearls}
+    else if event-item is minecart:
+        add 1 to {stats::%player%::carts_placed}
+    else if event-item is splash potion or lingering potion:
+        add 1 to {stats::%player%::potions_used}
+
+on consume:
+    if event-item is potion:
+        {match::%player%::arena} is set
+        add 1 to {stats::%player%::potions_used}
+
+# --- KIT CREATOR ---
+command /createkits:
+    permission: op
+    trigger:
+        set {_gui} to a new chest inventory with 3 rows named "&0Create Kits"
+        set {_k::*} to "Axe", "Mace", "UHC", "Sword", "Vanilla", "Neth_OP", "Pot", "Cart" and "SMP"
+        set {_s} to 0
+        loop {_k::*}:
+            set slot {_s} of {_gui} to green wool named "&a%loop-value%"
+            add 1 to {_s}
+        open {_gui} to player
+
+on inventory click:
+    name of event-inventory is "&0Create Kits"
+    cancel event
+    set {setup::%player%::kit} to uncolored name of event-slot
+    send "{@prefix} &fType &b'done' &fif this is the kit for &a%{setup::%player%::kit}%&f." to player
+    close player's inventory
+
+on chat:
+    if {setup::%player%::kit} is set:
+        cancel event
+        if message is "done":
+            send "{@prefix} &fHold the &bICON &f(item) and type &b'logo'&f." to player
+            set {setup::%player%::step} to "LOGO"
+        else if {setup::%player%::step} is "LOGO":
+            if message is "logo":
+                set {_k} to {setup::%player%::kit}
+                set {kit::%{_k}%::icon} to player's tool
+                set {kit::%{_k}%::helmet} to player's helmet
+                set {kit::%{_k}%::chest} to player's chestplate
+                set {kit::%{_k}%::legs} to player's leggings
+                set {kit::%{_k}%::boots} to player's boots
+                
+                clear {kit::%{_k}%::items::*}
+                loop 36 times:
+                    set {kit::%{_k}%::items::%loop-number%} to slot (loop-number - 1) of player's inventory
+                
+                if {kit::list::*} does not contain {_k}:
+                    add {_k} to {kit::list::*}
+                send "{@prefix} &aKit %{_k}% has been saved! (Exact slots stored)" to player
+                delete {setup::%player%::*}
+
+# --- ARENA ADMIN & HARD SNAPSHOT SYSTEM ---
+command /ghostadmin create arena:
+    permission: op
+    trigger:
+        give 1 blaze rod named "{@wand_name}" to player
+        set {setup::%player%::step} to "WAND1"
+        send "{@prefix} &fLeft-click for Pos 1, right-click for Pos 2." to player
+
+on left click with blaze rod:
+    if name of tool is "{@wand_name}":
+        if {setup::%player%::step} is "WAND1" or "WAND2":
+            cancel event
+            set {pos1::%player%} to location of targeted block
+            send "{@prefix} &bPosition 1 set! &fType &b'done'&f when both are done." to player
+            set {setup::%player%::step} to "WAND2"
+
+on right click with blaze rod:
+    if name of tool is "{@wand_name}":
+        if {setup::%player%::step} is "WAND1" or "WAND2":
+            cancel event
+            set {pos2::%player%} to location of targeted block
+            send "{@prefix} &bPosition 2 set! &fType &b'done'&f when both are done." to player
+
+on chat:
+    if {setup::%player%::step} is "WAND2":
+        if message is "done":
+            cancel event
+            send "{@prefix} &fGo to &bSpawn 1 &f- type &b'done'&f." to player
+            set {setup::%player%::step} to "SPAWN1"
+    else if {setup::%player%::step} is "SPAWN1":
+        if message is "done":
+            cancel event
+            set {setup::%player%::s1} to player's location
+            send "{@prefix} &fGo to &bSpawn 2 &f- type &b'done'&f." to player
+            set {setup::%player%::step} to "SPAWN2"
+    else if {setup::%player%::step} is "SPAWN2":
+        if message is "done":
+            cancel event
+            set {setup::%player%::s2} to player's location
+            send "{@prefix} &fArena ID (e.g. 1):" to player
+            set {setup::%player%::step} to "ID"
+    else if {setup::%player%::step} is "ID":
+        cancel event
+        set {setup::%player%::id} to message
+        send "{@prefix} &fDisplay Name (e.g. Dragons Cave):" to player
+        set {setup::%player%::step} to "DISPLAY"
+    else if {setup::%player%::step} is "DISPLAY":
+        cancel event
+        set {setup::%player%::display} to message
+        send "{@prefix} &fWill this arena be used for Vanilla/Mace/Cart? (y/n)" to player
+        set {setup::%player%::step} to "TYPE"
+    else if {setup::%player%::step} is "TYPE":
+        cancel event
+        set {_id} to {setup::%player%::id}
+        set {arena::%{_id}%::pos1} to {pos1::%player%}
+        set {arena::%{_id}%::pos2} to {pos2::%player%}
+        set {arena::%{_id}%::spawn::1} to {setup::%player%::s1}
+        set {arena::%{_id}%::spawn::2} to {setup::%player%::s2}
+        set {arena::%{_id}%::display} to {setup::%player%::display}
+        set {arena::%{_id}%::occupied} to false
+        
+        if message is "y":
+            set {arena::%{_id}%::special} to "VANILLA_MACE"
+        else:
+            set {arena::%{_id}%::special} to "NORMAL"
+            
+        if {arena::list::*} does not contain {_id}:
+            add {_id} to {arena::list::*}
+            
+        send "{@prefix} &eSaving hard snapshot... This might take a moment!" to player
+        
+        clear {arena::%{_id}%::locs::*}
+        clear {arena::%{_id}%::blocks::*}
+        
+        # --- FIXEN FÖR ARENA SKAPANDE (Ingen Krasch) ---
+        set {_b::*} to all blocks within {arena::%{_id}%::pos1} and {arena::%{_id}%::pos2}
+        set {_c} to 0
+        loop {_b::*}:
+            add location of loop-value to {arena::%{_id}%::locs::*}
+            add type of loop-value to {arena::%{_id}%::blocks::*}
+            add 1 to {_c}
+            if {_c} >= 200:
+                set {_c} to 0
+                wait 1 tick
+            
+        send "{@prefix} &aArena %{arena::%{_id}%::display}% created!" to player
+        delete {setup::%player%::*}
+
+# --- RESET ENGINE ---
+function isWithinRegion(loc: location, p1: location, p2: location) :: boolean:
+    set {_minX} to min(x-coord of {_p1}, x-coord of {_p2})
+    set {_maxX} to max(x-coord of {_p1}, x-coord of {_p2})
+    set {_minY} to min(y-coord of {_p1}, y-coord of {_p2})
+    set {_maxY} to max(y-coord of {_p1}, y-coord of {_p2})
+    set {_minZ} to min(z-coord of {_p1}, z-coord of {_p2})
+    set {_maxZ} to max(z-coord of {_p1}, z-coord of {_p2})
+    
+    if x-coord of {_loc} is between {_minX} and {_maxX}:
+        if y-coord of {_loc} is between {_minY} and {_maxY}:
+            if z-coord of {_loc} is between {_minZ} and {_maxZ}:
+                return true
+    return false
+
+function resetArena(arena: text):
+    set {_c} to 0
+    # --- FIXEN FÖR ARENA ÅTERSTÄLLNING (Ingen Krasch) ---
+    loop {arena::%{_arena}%::locs::*}:
+        if type of block at loop-value is not {arena::%{_arena}%::blocks::%loop-index%}:
+            set block at loop-value to {arena::%{_arena}%::blocks::%loop-index%}
+        add 1 to {_c}
+        if {_c} >= 200:
+            set {_c} to 0
+            wait 1 tick
+            
+    loop all entities in world "world":
+        if loop-entity is an arrow or dropped item or trident:
+            if isWithinRegion(location of loop-entity, {arena::%{_arena}%::pos1}, {arena::%{_arena}%::pos2}) is true:
+                kill loop-entity
+
+# --- MATCH ENGINE ---
+function finalizeMatch(w: player, l: player, kit: text, arena: text):
+    set {_winAmt} to calculatePerformance({_w}, {_l}, {_kit})
+    
+    set {_lossAmt} to 25
+    if {_winAmt} > 60: 
+        set {_lossAmt} to 30
+    
+    if {placements::%{_w}%::%{_kit}%} > 0:
+        remove 1 from {placements::%{_w}%::%{_kit}%}
+        if {placements::%{_w}%::%{_kit}%} is 0:
+            set {points::%{_w}%::%{_kit}%} to 2000 
+            
+    if {placements::%{_l}%::%{_kit}%} > 0:
+        remove 1 from {placements::%{_l}%::%{_kit}%}
+        if {placements::%{_l}%::%{_kit}%} is 0:
+            set {points::%{_l}%::%{_kit}%} to 1500
+
+    if {placements::%{_w}%::%{_kit}%} is 0:
+        add {_winAmt} to {points::%{_w}%::%{_kit}%}
+    if {placements::%{_l}%::%{_kit}%} is 0:
+        remove {_lossAmt} from {points::%{_l}%::%{_kit}%}
+        if {points::%{_l}%::%{_kit}%} < 0:
+            set {points::%{_l}%::%{_kit}%} to 0
+        
+    broadcast "{@prefix} &b%{_w}% &7beat &b%{_l}% &8[&e%{_kit}%&8] &a+%{_winAmt}% pts"
+    
+    # Släpper arenan fri för kön igen!
+    set {arena::%{_arena}%::occupied} to false
+    resetArena({_arena})
+    delete {placed::*}
+    
+    delete {match::%{_w}%::*}
+    delete {match::%{_l}%::*}
+    delete {stats::%{_w}%::*}
+    delete {stats::%{_l}%::*}
+    
+    wait 10 ticks
+    if {_w} is online:
+        heal {_w}
+        extinguish {_w}
+        teleport {_w} to spawn of world "world"
+        wait 5 ticks
+        execute console command "itemjoin give %{_w}%"
+    if {_l} is online:
+        heal {_l}
+        extinguish {_l}
+        teleport {_l} to spawn of world "world"
+        wait 5 ticks
+        execute console command "itemjoin give %{_l}%"
+
+# --- MATCHMAKING & ROUNDS ---
+command /duel:
+    trigger:
+        set {_gui} to a new chest inventory with 2 rows named "&0Select Kit"
+        loop {kit::list::*}:
+            set slot (loop-index parsed as integer - 1) of {_gui} to {kit::%loop-value%::icon} named "&b%loop-value%" with lore "&7Rank: %getTier(player, loop-value)%"
+        open {_gui} to player
+
+on inventory click:
+    name of event-inventory is "&0Select Kit"
+    cancel event
+    set {_kit} to uncolored name of event-slot
+    queuePlayer(player, {_kit})
+    close player's inventory
+
+command /leavequeue:
+    aliases: /unqueue
+    trigger:
+        if {queuing::%player%} is true:
+            set {_kit} to {queuekit::%player%}
+            remove player from {queue::%{_kit}%::*}
+            delete {queuing::%player%}
+            delete {queuetimer::%player%}
+            delete {queuekit::%player%}
+            giveLobbyItems(player)
+            send "{@prefix} &cYou left the queue." to player
+        else:
+            send "{@prefix} &cYou are not in a queue." to player
+
+function queuePlayer(p: player, kit: text):
+    set {queuing::%{_p}%} to true
+    set {queuekit::%{_p}%} to {_kit}
+    add {_p} to {queue::%{_kit}%::*}
+    set {queuetimer::%{_p}%} to 0
+    set {_pTierValue} to getTierValue({points::%{_p}%::%{_kit}%})
+    
+    clear {_p}'s inventory
+    set slot 8 of {_p} to {@leave_item}
+    
+    while {queuing::%{_p}%} is true:
+        add 1 to {queuetimer::%{_p}%}
+        
+        # 4. ARENA CHECK: Finns det en ledig arena för detta kit?
+        set {_freeArena} to false
+        loop {arena::list::*}:
+            if {arena::%loop-value%::occupied} is false:
+                if {_kit} is "Vanilla" or "Mace" or "Cart":
+                    if {arena::%loop-value%::special} is "VANILLA_MACE":
+                        set {_freeArena} to true
+                else:
+                    if {arena::%loop-value%::special} is "NORMAL":
+                        set {_freeArena} to true
+                        
+        if {_freeArena} is true:
+            loop {queue::%{_kit}%::*}:
+                if loop-value is offline:
+                    remove loop-value from {queue::%{_kit}%::*}
+                    delete {queuing::%loop-value%}
+                else if loop-value is not {_p}:
+                    set {_oTierValue} to getTierValue({points::%loop-value%::%{_kit}%})
+                    
+                    if {_pTierValue} is {_oTierValue}:
+                        startMatch({_p}, loop-value, {_kit})
+                        stop
+                    else if {queuetimer::%{_p}%} > 15:
+                        set {_diff} to difference between {_pTierValue} and {_oTierValue}
+                        if {_diff} <= 1:
+                            startMatch({_p}, loop-value, {_kit})
+                            stop
+            send action bar "&b&lSEARCHING: &f%{_kit}% &8| &e%{queuetimer::%{_p}%}%s" to {_p}
+        else:
+            # ARENAN ÄR UPPTAGEN - Låter kön vänta
+            send action bar "&c&lWAITING FOR FREE ARENA... &8| &e%{queuetimer::%{_p}%}%s" to {_p}
+            
+        wait 1 second
+
+function startMatch(p1: player, p2: player, kit: text):
+    delete {queuing::%{_p1}%}
+    delete {queuing::%{_p2}%}
+    delete {queuekit::%{_p1}%}
+    delete {queuekit::%{_p2}%}
+    remove {_p1} and {_p2} from {queue::%{_kit}%::*}
+    
+    set {_valid::*} to ""
+    clear {_valid::*}
+    loop {arena::list::*}:
+        if {arena::%loop-value-1%::occupied} is false:
+            if {_kit} is "Vanilla" or "Mace" or "Cart":
+                if {arena::%loop-value-1%::special} is "VANILLA_MACE":
+                    add loop-value-1 to {_valid::*}
+            else:
+                if {arena::%loop-value-1%::special} is "NORMAL":
+                    add loop-value-1 to {_valid::*}
+    
+    set {_arena} to random element of {_valid::*}
+    set {arena::%{_arena}%::occupied} to true # Låser arenan!
+    
+    set {match::%{_p1}%::opponent} to {_p2}
+    set {match::%{_p2}%::opponent} to {_p1}
+    set {match::%{_p1}%::kit} to {_kit}
+    set {match::%{_p2}%::kit} to {_kit}
+    set {match::%{_p1}%::arena} to {_arena}
+    set {match::%{_p2}%::arena} to {_arena}
+    set {match::%{_p1}%::roundwins} to 0
+    set {match::%{_p2}%::roundwins} to 0
+    
+    startRound({_p1}, {_p2}, {_kit}, {_arena})
+
+function startRound(p1: player, p2: player, kit: text, arena: text):
+    set {match::%{_p1}%::starttime} to now
+    set {match::%{_p2}%::starttime} to now
+    
+    heal {_p1}
+    heal {_p2}
+    extinguish {_p1}
+    extinguish {_p2}
+    set {_p1}'s food level to 10
+    set {_p2}'s food level to 10
+    
+    teleport {_p1} to {arena::%{_arena}%::spawn::1}
+    teleport {_p2} to {arena::%{_arena}%::spawn::2}
+    
+    clear {_p1}'s inventory
+    clear {_p2}'s inventory
+    
+    # 2. FIX: 11.5 Armor Slots (Så det inte hamnar i inventory)
+    set slot 39 of {_p1}'s inventory to {kit::%{_kit}%::helmet}
+    set slot 38 of {_p1}'s inventory to {kit::%{_kit}%::chest}
+    set slot 37 of {_p1}'s inventory to {kit::%{_kit}%::legs}
+    set slot 36 of {_p1}'s inventory to {kit::%{_kit}%::boots}
+    
+    set slot 39 of {_p2}'s inventory to {kit::%{_kit}%::helmet}
+    set slot 38 of {_p2}'s inventory to {kit::%{_kit}%::chest}
+    set slot 37 of {_p2}'s inventory to {kit::%{_kit}%::legs}
+    set slot 36 of {_p2}'s inventory to {kit::%{_kit}%::boots}
+
+    # Fyller inventory (0-35)
+    loop 36 times:
+        set slot (loop-number - 1) of {_p1}'s inventory to {kit::%{_kit}%::items::%loop-number%}
+        set slot (loop-number - 1) of {_p2}'s inventory to {kit::%{_kit}%::items::%loop-number%}
+    
+    set {match::%{_p1}%::waiting} to true
+    set {match::%{_p2}%::waiting} to true
+    
+    # 1. FIX: Exakt potion-syntax hämtad direkt från din 11.5
+    apply slowness 10 to {_p1} and {_p2} for 6 seconds
+    apply jump boost 128 to {_p1} and {_p2} for 6 seconds
+    
+    loop 5 times:
+        set {_c} to 6 - loop-number
+        send title "&b&l%{_c}%" to {_p1} and {_p2}
+        play sound "block.note_block.pling" with volume 1 and pitch 1 to {_p1} and {_p2}
+        wait 1 second
+        
+    delete {match::%{_p1}%::waiting}
+    delete {match::%{_p2}%::waiting}
+    remove slowness from {_p1} and {_p2}
+    remove jump boost from {_p1} and {_p2}
+    send title "&6&lFIGHT!" to {_p1} and {_p2}
+
+# --- DISCONNECT LOGIC ---
+on quit:
+    if {queuing::%player%} is true:
+        set {_kit} to {queuekit::%player%}
+        remove player from {queue::%{_kit}%::*}
+        delete {queuing::%player%}
+        delete {queuetimer::%player%}
+        delete {queuekit::%player%}
+
+    if {match::%player%::arena} is set:
+        set {_w} to {match::%player%::opponent}
+        set {_kit} to {match::%player%::kit}
+        set {_a} to {match::%player%::arena}
+        
+        broadcast "{@prefix} &b%player% &7disconnected! &b%{_w}% &7wins by default."
+        set {arena::%{_a}%::occupied} to false
+        finalizeMatch({_w}, player, {_kit}, {_a})
+
+on death:
+    if {match::%victim%::arena} is set:
+        cancel event
+        
+        heal victim
+        extinguish victim
+        heal {match::%victim%::opponent}
+        extinguish {match::%victim%::opponent}
+        
+        set {_w} to {match::%victim%::opponent}
+        set {_kit} to {match::%victim%::kit}
+        set {_a} to {match::%victim%::arena}
+        
+        add 1 to {match::%{_w}%::roundwins}
+        
+        set {_needed} to 1
+        if {_kit} is "Sword" or "Axe":
+            set {_needed} to 2 # Best of 3
+            
+        set gamemode of victim to spectator
+        
+        if {match::%{_w}%::roundwins} >= {_needed}:
+            send title "&b%{_w}%" with subtitle "&7won the match!" to {_w} and victim
+            wait 3 seconds
+            if {match::%victim%::arena} is set:
+                set gamemode of victim to survival
+                finalizeMatch({_w}, victim, {_kit}, {_a})
+        else:
+            send title "&b%{_w}%" with subtitle "&7won the round!" to {_w} and victim
+            wait 3 seconds
+            if {match::%victim%::arena} is set:
+                set gamemode of victim to survival
+                resetArena({_a})
+                delete {placed::*}
+                startRound({_w}, victim, {_kit}, {_a})
+
+# --- PROTECTION & BREAK/PLACE LOGIC ---
+on place:
+    if {match::%player%::arena} is set:
+        set {_id} to {match::%player%::arena}
+        set {_loc} to location of event-block
+        
+        if isWithinRegion({_loc}, {arena::%{_id}%::pos1}, {arena::%{_id}%::pos2}) is true:
+            set {placed::%{_loc}%} to true
+            if event-block is cobweb:
+                add 1 to {stats::%player%::traps}
+            if event-block is end crystal:
+                add 1 to {stats::%player%::crystals_placed}
+        else:
+            cancel event
+    else if player is not op:
+        cancel event
+
+on break:
+    if {match::%player%::arena} is set:
+        set {_id} to {match::%player%::arena}
+        set {_loc} to location of event-block
+        
+        if isWithinRegion({_loc}, {arena::%{_id}%::pos1}, {arena::%{_id}%::pos2}) is true:
+            if {arena::%{_id}%::special} is "NORMAL":
+                if {placed::%{_loc}%} is true:
+                    delete {placed::%{_loc}%}
+                else if event-block is fire or cobweb:
+                    stop
+                else:
+                    cancel event
+        else:
+            cancel event
+    else if player is not op:
+        cancel event
+
+on explode:
+    loop {arena::list::*}:
+        set {_id} to loop-value
+        if isWithinRegion(event-location, {arena::%{_id}%::pos1}, {arena::%{_id}%::pos2}) is true:
+            if {arena::%{_id}%::special} is "NORMAL":
+                cancel event
+            stop
+
+# --- ARENA MANAGEMENT COMMANDS ---
+command /deletearena <text>:
+    permission: op
+    trigger:
+        set {_id} to arg-1
+        if {arena::list::*} contains {_id}:
+            remove {_id} from {arena::list::*}
+            delete {arena::%{_id}%::*}
+            send "{@prefix} &aArena &b%{_id}% &ahas been deleted!" to player
+        else:
+            send "{@prefix} &cArena &b%{_id}% &cfound no match in the list." to player
+
+command /seeall:
+    permission: op
+    trigger:
+        if size of {arena::list::*} is 0:
+            send "{@prefix} &cThere are no arenas created yet." to player
+            stop
+        send "{@prefix} &fList of all Arena IDs:" to player
+        loop {arena::list::*}:
+            set {_type} to {arena::%loop-value%::special}
+            set {_name} to {arena::%loop-value%::display}
+            set {_status} to "&aFREE"
+            if {arena::%loop-value%::occupied} is true:
+                set {_status} to "&cBUSY"
+            send "&8- &bID: &l%loop-value% &8| &fName: &7%{_name}% &8| &eType: &7%{_type}% &8| &7Status: %{_status}%" to player
+
+command /resettiers:
+    permission: op
+    trigger:
+        delete {points::*}
+        delete {placements::*}
+        broadcast "{@prefix} &aAll ranks, tiers, and placements have been reset! Everyone is now Unranked."
