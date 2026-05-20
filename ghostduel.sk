@@ -260,12 +260,13 @@ command /ghostadmin [<text>] [<text>]:
         if arg-1 is "cancel":
             set {setup::%player%::cancel} to true
             send "{@prefix} &cSnapshot processen avbryts... rensar minne." to player
-        
-        else if arg-1 is "create" and arg-2 is "arena":
-            give 1 blaze rod named "{@wand_name}" to player
-            set {setup::%player%::step} to "WAND1"
-            send "{@prefix} &fLeft-click for Pos 1, right-click for Pos 2." to player
-            
+        else if arg-1 is "create":
+            if arg-2 is "arena":
+                give 1 blaze rod named "{@wand_name}" to player
+                set {setup::%player%::step} to "WAND1"
+                send "{@prefix} &fLeft-click for Pos 1, right-click for Pos 2." to player
+            else:
+                send "{@prefix} &cAnvänd: /ghostadmin create arena" to player
         else:
             send "{@prefix} &fAnvänd: &b/ghostadmin create arena &feller &b/ghostadmin cancel" to player
 
