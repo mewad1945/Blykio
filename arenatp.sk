@@ -1,0 +1,8 @@
+command /arenatp <text>:
+    permission: op
+    trigger:
+        if {arena::%arg-1%::spawn::1} is set:
+            teleport player to {arena::%arg-1%::spawn::1}
+            send "{@prefix} &aTeleporterad till arena &b%arg-1%&a!" to player
+        else:
+            send "{@prefix} &cArenan &b%arg-1% &chittades inte (eller har ingen spawn inställd)." to player
