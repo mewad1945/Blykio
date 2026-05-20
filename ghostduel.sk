@@ -254,18 +254,20 @@ on chat:
                 delete {setup::%player%::*}
 
 # --- ARENA ADMIN & HARD SNAPSHOT SYSTEM ---
-command /ghostadmin cancel:
+command /ghostadmin [<text>] [<text>]:
     permission: op
     trigger:
-        set {setup::%player%::cancel} to true
-        send "{@prefix} &cSnapshot processen avbryts... rensar minne." to player
-
-command /ghostadmin create arena:
-    permission: op
-    trigger:
-        give 1 blaze rod named "{@wand_name}" to player
-        set {setup::%player%::step} to "WAND1"
-        send "{@prefix} &fLeft-click for Pos 1, right-click for Pos 2." to player
+        if arg-1 is "cancel":
+            set {setup::%player%::cancel} to true
+            send "{@prefix} &cSnapshot processen avbryts... rensar minne." to player
+        
+        else if arg-1 is "create" and arg-2 is "arena":
+            give 1 blaze rod named "{@wand_name}" to player
+            set {setup::%player%::step} to "WAND1"
+            send "{@prefix} &fLeft-click for Pos 1, right-click for Pos 2." to player
+            
+        else:
+            send "{@prefix} &fAnvänd: &b/ghostadmin create arena &feller &b/ghostadmin cancel" to player
 
 on left click with blaze rod:
     if name of tool is "{@wand_name}":
@@ -356,7 +358,6 @@ on chat:
         else:
             send "{@prefix} &cSnapshot avbruten. Arenan skapades men block sparades inte fullt ut." to player
             delete {setup::%player%::*}
-
 # --- RESET ENGINE ---
 function isWithinRegion(loc: location, p1: location, p2: location) :: boolean:
     set {_minX} to min(x-coord of {_p1}, x-coord of {_p2})
