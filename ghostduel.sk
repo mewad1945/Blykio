@@ -1,6 +1,6 @@
 # ======================================================
 # GHOSTDUEL - THE MASTER UPDATE (FULL CODE)
-# Version: 3.8 - Strict 11.5 Armor/Potion Syntax + Queue Block
+# Version: 3.9 - ItemJoin fix & Anti-Double Armor Filter
 # ======================================================
 
 options:
@@ -16,7 +16,7 @@ function giveLobbyItems(p: player):
     set {_p}'s leggings to air
     set {_p}'s boots to air
     set {_p}'s offhand tool to air
-    execute console command "itemjoin give %{_p}%"
+    execute console command "itemjoin give %{_p}% all"
 
 on join:
     giveLobbyItems(player)
@@ -327,7 +327,6 @@ on chat:
         clear {arena::%{_id}%::locs::*}
         clear {arena::%{_id}%::blocks::*}
         
-        # --- FIXEN FÖR ARENA SKAPANDE (Ingen Krasch) ---
         set {_b::*} to all blocks within {arena::%{_id}%::pos1} and {arena::%{_id}%::pos2}
         set {_c} to 0
         loop {_b::*}:
@@ -358,7 +357,6 @@ function isWithinRegion(loc: location, p1: location, p2: location) :: boolean:
 
 function resetArena(arena: text):
     set {_c} to 0
-    # --- FIXEN FÖR ARENA ÅTERSTÄLLNING (Ingen Krasch) ---
     loop {arena::%{_arena}%::locs::*}:
         if type of block at loop-value is not {arena::%{_arena}%::blocks::%loop-index%}:
             set block at loop-value to {arena::%{_arena}%::blocks::%loop-index%}
@@ -399,7 +397,6 @@ function finalizeMatch(w: player, l: player, kit: text, arena: text):
         
     broadcast "{@prefix} &b%{_w}% &7beat &b%{_l}% &8[&e%{_kit}%&8] &a+%{_winAmt}% pts"
     
-    # Släpper arenan fri för kön igen!
     set {arena::%{_arena}%::occupied} to false
     resetArena({_arena})
     delete {placed::*}
@@ -410,7 +407,6 @@ function finalizeMatch(w: player, l: player, kit: text, arena: text):
     delete {stats::%{_l}%::*}
     
     wait 10 ticks
-    # Fix: Rensar inventoryt och ger rätt saker i slutet av matchen
     if {_w} is online:
         heal {_w}
         extinguish {_w}
@@ -466,7 +462,6 @@ function queuePlayer(p: player, kit: text):
     while {queuing::%{_p}%} is true:
         add 1 to {queuetimer::%{_p}%}
         
-        # 4. ARENA CHECK: Finns det en ledig arena för detta kit?
         set {_freeArena} to false
         loop {arena::list::*}:
             if {arena::%loop-value%::occupied} is false:
@@ -495,7 +490,6 @@ function queuePlayer(p: player, kit: text):
                             stop
             send action bar "&b&lSEARCHING: &f%{_kit}% &8| &e%{queuetimer::%{_p}%}%s" to {_p}
         else:
-            # ARENAN ÄR UPPTAGEN - Låter kön vänta
             send action bar "&c&lWAITING FOR FREE ARENA... &8| &e%{queuetimer::%{_p}%}%s" to {_p}
             
         wait 1 second
@@ -519,7 +513,7 @@ function startMatch(p1: player, p2: player, kit: text):
                     add loop-value-1 to {_valid::*}
     
     set {_arena} to random element of {_valid::*}
-    set {arena::%{_arena}%::occupied} to true # Låser arenan!
+    set {arena::%{_arena}%::occupied} to true 
     
     set {match::%{_p1}%::opponent} to {_p2}
     set {match::%{_p2}%::opponent} to {_p1}
@@ -560,7 +554,6 @@ function startRound(p1: player, p2: player, kit: text, arena: text):
     set {_p2}'s boots to air
     set {_p2}'s offhand tool to air
     
-    # 2. FIX: Ändrat till Skripts standard rustningssystem så det INTE dupliceras i inventoryt
     set {_p1}'s helmet to {kit::%{_kit}%::helmet}
     set {_p1}'s chestplate to {kit::%{_kit}%::chest}
     set {_p1}'s leggings to {kit::%{_kit}%::legs}
@@ -571,15 +564,35 @@ function startRound(p1: player, p2: player, kit: text, arena: text):
     set {_p2}'s leggings to {kit::%{_kit}%::legs}
     set {_p2}'s boots to {kit::%{_kit}%::boots}
 
-    # Fyller inventory (0-35)
+    # FIX FÖR DUBBEL ARMOR: Fyller inventory men filtrerar bort rustning om den sparades i hotbaren av misstag!
     loop 36 times:
-        set slot (loop-number - 1) of {_p1}'s inventory to {kit::%{_kit}%::items::%loop-number%}
-        set slot (loop-number - 1) of {_p2}'s inventory to {kit::%{_kit}%::items::%loop-number%}
+        set {_i1} to {kit::%{_kit}%::items::%loop-number%}
+        if {_i1} is not air:
+            if {_i1} is {kit::%{_kit}%::helmet}:
+                set {_i1} to air
+            else if {_i1} is {kit::%{_kit}%::chest}:
+                set {_i1} to air
+            else if {_i1} is {kit::%{_kit}%::legs}:
+                set {_i1} to air
+            else if {_i1} is {kit::%{_kit}%::boots}:
+                set {_i1} to air
+        set slot (loop-number - 1) of {_p1}'s inventory to {_i1}
+        
+        set {_i2} to {kit::%{_kit}%::items::%loop-number%}
+        if {_i2} is not air:
+            if {_i2} is {kit::%{_kit}%::helmet}:
+                set {_i2} to air
+            else if {_i2} is {kit::%{_kit}%::chest}:
+                set {_i2} to air
+            else if {_i2} is {kit::%{_kit}%::legs}:
+                set {_i2} to air
+            else if {_i2} is {kit::%{_kit}%::boots}:
+                set {_i2} to air
+        set slot (loop-number - 1) of {_p2}'s inventory to {_i2}
     
     set {match::%{_p1}%::waiting} to true
     set {match::%{_p2}%::waiting} to true
     
-    # 1. FIX: Exakt potion-syntax hämtad direkt från din 11.5
     apply slowness 10 to {_p1} and {_p2} for 6 seconds
     apply jump boost 128 to {_p1} and {_p2} for 6 seconds
     
