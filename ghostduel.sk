@@ -1,6 +1,6 @@
 # ======================================================
 # GHOSTDUEL - THE MASTER UPDATE (FULL CODE)
-# Version: 3.9 - ItemJoin fix & Anti-Double Armor Filter
+# Version: 4.0 - ItemJoin fix, Anti-Double Armor & Safe Snapshot
 # ======================================================
 
 options:
@@ -254,6 +254,12 @@ on chat:
                 delete {setup::%player%::*}
 
 # --- ARENA ADMIN & HARD SNAPSHOT SYSTEM ---
+command /ghostadmin cancel:
+    permission: op
+    trigger:
+        set {setup::%player%::cancel} to true
+        send "{@prefix} &cSnapshot processen avbryts... rensar minne." to player
+
 command /ghostadmin create arena:
     permission: op
     trigger:
@@ -322,23 +328,34 @@ on chat:
         if {arena::list::*} does not contain {_id}:
             add {_id} to {arena::list::*}
             
-        send "{@prefix} &eSaving hard snapshot... This might take a moment!" to player
+        send "{@prefix} &eSparar snapshot... Skriv &c/ghostadmin cancel &eför att avbryta." to player
         
         clear {arena::%{_id}%::locs::*}
         clear {arena::%{_id}%::blocks::*}
         
         set {_b::*} to all blocks within {arena::%{_id}%::pos1} and {arena::%{_id}%::pos2}
         set {_c} to 0
+        set {setup::%player%::cancel} to false
+        
         loop {_b::*}:
+            if {setup::%player%::cancel} is true:
+                stop
+            
             add location of loop-value to {arena::%{_id}%::locs::*}
             add type of loop-value to {arena::%{_id}%::blocks::*}
-            add 1 to {_c}
-            if {_c} >= 200:
-                set {_c} to 0
-                wait 1 tick
             
-        send "{@prefix} &aArena %{arena::%{_id}%::display}% created!" to player
-        delete {setup::%player%::*}
+            add 1 to {_c}
+            if {_c} >= 100:
+                set {_c} to 0
+                send action bar "&eSparar block... (%loop-index% / %size of {_b::*}%)" to player
+                wait 2 ticks
+            
+        if {setup::%player%::cancel} is false:
+            send "{@prefix} &aArena %{arena::%{_id}%::display}% skapad!" to player
+            delete {setup::%player%::*}
+        else:
+            send "{@prefix} &cSnapshot avbruten. Arenan skapades men block sparades inte fullt ut." to player
+            delete {setup::%player%::*}
 
 # --- RESET ENGINE ---
 function isWithinRegion(loc: location, p1: location, p2: location) :: boolean:
